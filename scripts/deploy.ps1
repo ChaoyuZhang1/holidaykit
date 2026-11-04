@@ -30,13 +30,16 @@ if (-not $SkipCollect) {
 }
 
 Write-Host "==> 6/6 build + deploy" -ForegroundColor Cyan
-python scripts/build_site.py `
-  --site-url $SiteUrl `
-  --affiliate-url $AffiliateUrl `
-  --contact-email $ContactEmail `
-  --adsense-client $AdsenseClient `
-  --google-site-verification $GoogleVerification `
-  --indexnow-key $IndexNowKey
+$buildArgs = @(
+  "scripts/build_site.py",
+  "--site-url", $SiteUrl,
+  "--contact-email", $ContactEmail
+)
+if ($AffiliateUrl) { $buildArgs += @("--affiliate-url", $AffiliateUrl) }
+if ($AdsenseClient) { $buildArgs += @("--adsense-client", $AdsenseClient) }
+if ($GoogleVerification) { $buildArgs += @("--google-site-verification", $GoogleVerification) }
+if ($IndexNowKey) { $buildArgs += @("--indexnow-key", $IndexNowKey) }
+python @buildArgs
 
 if (-not $env:CLOUDFLARE_API_TOKEN) {
   Write-Host "CLOUDFLARE_API_TOKEN is not set; cannot deploy." -ForegroundColor Yellow

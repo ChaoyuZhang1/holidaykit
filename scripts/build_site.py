@@ -1660,11 +1660,11 @@ def main() -> int:
     parser.add_argument("--site-url", default="https://holidaykit.example")
     parser.add_argument("--verified", default=date.today().isoformat())
     parser.add_argument("--official-sources", default=str(ROOT / "data" / "official_sources.json"))
-    parser.add_argument("--affiliate-url", default="", help="travel affiliate CTA URL")
+    parser.add_argument("--affiliate-url", nargs="?", const="", default="", help="travel affiliate CTA URL")
     parser.add_argument("--contact-email", default="hello@example.com")
-    parser.add_argument("--adsense-client", default="", help="AdSense publisher id, e.g. pub-0000000000000000")
-    parser.add_argument("--google-site-verification", default="", help="Google Search Console verification token")
-    parser.add_argument("--indexnow-key", default="", help="IndexNow key (written as /{key}.txt for Bing/Yandex)")
+    parser.add_argument("--adsense-client", nargs="?", const="", default="", help="AdSense publisher id, e.g. pub-0000000000000000")
+    parser.add_argument("--google-site-verification", nargs="?", const="", default="", help="Google Search Console verification token")
+    parser.add_argument("--indexnow-key", nargs="?", const="", default="", help="IndexNow key (written as /{key}.txt for Bing/Yandex)")
     args = parser.parse_args()
 
     global SITE_URL, AFFILIATE_URL, CONTACT_EMAIL, ADSENSE_CLIENT, OFFICIAL_SOURCES, OG_IMAGE, GOOGLE_VERIFY, SCHOOL_DATA, SCHOOL_NAMES
