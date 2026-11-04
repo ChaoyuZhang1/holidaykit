@@ -7,3 +7,4 @@ data/cache/
 .wrangler/
 data/cache_oh/
 data/cache_lib/
+tmp_*
