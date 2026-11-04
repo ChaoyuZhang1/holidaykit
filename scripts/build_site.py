@@ -1438,6 +1438,7 @@ def main() -> int:
     parser.add_argument("--contact-email", default="hello@example.com")
     parser.add_argument("--adsense-client", default="", help="AdSense publisher id, e.g. pub-0000000000000000")
     parser.add_argument("--google-site-verification", default="", help="Google Search Console verification token")
+    parser.add_argument("--indexnow-key", default="", help="IndexNow key (written as /{key}.txt for Bing/Yandex)")
     args = parser.parse_args()
 
     global SITE_URL, AFFILIATE_URL, CONTACT_EMAIL, ADSENSE_CLIENT, OFFICIAL_SOURCES, OG_IMAGE, GOOGLE_VERIFY
@@ -1617,6 +1618,8 @@ def main() -> int:
     # ── widget / CDN headers / ads.txt ──
     (out / "widget.js").write_text(WIDGET_JS, encoding="utf-8")
     (out / "favicon.svg").write_text(FAVICON_SVG, encoding="utf-8")
+    if args.indexnow_key:
+        (out / f"{args.indexnow_key}.txt").write_text(args.indexnow_key, encoding="utf-8")
     if OG_IMAGE:
         shutil.copyfile(ROOT / "assets" / "og-cover.png", out / "og-cover.png")
     (out / "_headers").write_text(

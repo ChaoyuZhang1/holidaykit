@@ -2,7 +2,7 @@ name: deploy
 
 on:
   push:
-    branches: [main]
+    branches: [master]
   schedule:
     # 每周一 03:00 UTC 重新采集（节假日是活数据）
     - cron: "0 3 * * 1"
@@ -18,10 +18,22 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Collect holidays
-        run: python scripts/collect.py
+      - name: Install python-holidays
+        run: python -m pip install --quiet holidays
 
-      - name: Audit data (fails on schema/duplicate errors)
+      - name: Collect (Nager.Date)
+        run: python scripts/fetch_cache.py
+
+      - name: Collect (OpenHolidays)
+        run: python scripts/fetch_openholidays.py
+
+      - name: Collect (python-holidays fallback)
+        run: python scripts/fetch_lib.py
+
+      - name: Assemble data
+        run: python scripts/assemble.py
+
+      - name: Audit data
         run: python scripts/audit.py
 
       - name: Self-test build
@@ -31,13 +43,19 @@ jobs:
         run: >
           python scripts/build_site.py
           --site-url "${{ vars.SITE_URL }}"
-          --affiliate-url "${{ vars.AFFILIATE_URL }}"
           --contact-email "${{ vars.CONTACT_EMAIL }}"
+          --affiliate-url "${{ vars.AFFILIATE_URL }}"
           --adsense-client "${{ vars.ADSENSE_CLIENT }}"
+          --google-site-verification "${{ vars.GOOGLE_VERIFICATION }}"
+          --indexnow-key "${{ vars.INDEXNOW_KEY }}"
 
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy dist --project-name ${{ vars.CF_PAGES_PROJECT }} --branch main
+          command: pages deploy dist --project-name ${{ vars.CF_PAGES_PROJECT }} --branch master
+
+      - name: Submit IndexNow
+        if: vars.INDEXNOW_KEY != ''
+        run: python scripts/indexnow.py --key "${{ vars.INDEXNOW_KEY }}" --site-url "${{ vars.SITE_URL }}"

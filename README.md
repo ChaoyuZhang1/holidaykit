@@ -166,3 +166,12 @@ python scripts/build_site.py --site-url https://your-domain --google-site-verifi
 - 移动端固定 CTA
 - AdSense 自适应广告位 + `ads.txt`
 - Google Search Console 验证 meta：`--google-site-verification TOKEN`
+
+## 搜索引擎提交（收录）
+
+- **IndexNow**（Bing / Yandex / 合作引擎）：构建时 `--indexnow-key <KEY>` 会生成 `/{KEY}.txt`，部署后执行
+  `python scripts/indexnow.py --key <KEY>`，一次提交全部 sitemap URL（实测 1074 条返回 200）。
+- **Google Search Console**：需要站点所有者自己的 Google 账号验证。拿到 GSC 的 HTML 标记后，构建时加
+  `--google-site-verification <TOKEN>` 即可在全站 head 注入验证 meta；然后在 GSC 里提交
+  `https://<你的域名>/sitemap.xml`。
+- 其余 SQL：canonical、FAQ 结构化数据、sitemap、robots 均已在构建时生成。
