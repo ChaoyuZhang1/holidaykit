@@ -141,3 +141,28 @@ powershell -ExecutionPolicy Bypass -File scripts/deploy.ps1 `
 | å„å›½æ”¿åºœç«™ç‚¹ | äººå·¥æ ¸å¯¹ | å¼•ç”¨äº‹å®ï¼Œä¸å¤åˆ¶æ­£æ–‡ |
 
 **ä¸è¦æŠ“å– timeanddate / officeholidays ç­‰ç‰ˆæƒç«™ç‚¹**ï¼›ä»…å‚è€ƒé¡µé¢ç»“æ„ã€‚
+
+## Êı¾İ¹ÜÏß£¨ÈıÔ´ÓÅÏÈ¼¶£©
+
+1. **Nager.Date** ¡ú `data/cache/`
+2. **OpenHolidays** ¡ú `data/cache_oh/`
+3. **python-holidays** ¡ú `data/cache_lib/`£¨²¹ÆëÇ°Á½Ô´²»¸²¸ÇµÄ¹ú¼Ò£¬Èç TW/MY/TH/IN/PK£©
+
+```bash
+python scripts/fetch_cache.py          # Ô´ 1
+python scripts/fetch_openholidays.py   # Ô´ 2
+python -m pip install holidays
+python scripts/fetch_lib.py            # Ô´ 3
+python scripts/assemble.py             # °´ÓÅÏÈ¼¶×éºÏ ¡ú data/holidays.json
+python scripts/audit.py
+python scripts/build_site.py --site-url https://your-domain --google-site-verification TOKEN --adsense-client pub-XXXX
+```
+
+## ÊÓ¾õÓëÔö³¤×é¼ş
+
+- ³¤ÖÜÄ©¿¨Æ¬£¨¹ú¼ÒÒ³ / ³¤ÖÜÄ©Ò³£©
+- Äê·İÒ³ 12 ¸öÔÂÔÂÀúÊÓÍ¼£¨¼ÙÆÚ¸ßÁÁ¡¢ÖÜÄ©µ×É«£©
+- OG ·ÖÏíÍ¼£º`python scripts/make_og.py` ¡ú `assets/og-cover.png`£¨¹¹½¨Ê±×Ô¶¯¿½±´£©
+- ÒÆ¶¯¶Ë¹Ì¶¨ CTA
+- AdSense ×ÔÊÊÓ¦¹ã¸æÎ» + `ads.txt`
+- Google Search Console ÑéÖ¤ meta£º`--google-site-verification TOKEN`

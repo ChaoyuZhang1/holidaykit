@@ -36,27 +36,50 @@ def merge_rows(rows: list[dict]) -> list[dict]:
 
 
 def main() -> int:
-    cache = ROOT / "data" / "cache"
     out_path = ROOT / "data" / "holidays.json"
-    if not cache.exists():
-        print(f"cache not found: {cache}\nRun: powershell -ExecutionPolicy Bypass -File scripts/fetch_cache.ps1")
+    priority = [
+        ("cache", "nager.date"),
+        ("cache_oh", "openholidays.api"),
+        ("cache_lib", "python-holidays"),
+    ]
+    roots = [(ROOT / "data" / folder, source) for folder, source in priority]
+    if not any(root.exists() for root, _ in roots):
+        print("No cache folders found. Run scripts/fetch_cache.py first.")
         return 1
 
+    best: dict[tuple, list[dict]] = {}
+    seen: set[tuple] = set()
+    for root, source in roots:
+        if not root.exists():
+            continue
+        for cc_dir in sorted(p for p in root.iterdir() if p.is_dir()):
+            cc = cc_dir.name
+            for file in sorted(cc_dir.glob("*.json")):
+                try:
+                    year = int(file.stem)
+                except ValueError:
+                    continue
+                key = (cc, year)
+                seen.add(key)
+                if key in best:
+                    continue
+                try:
+                    raw = json.loads(file.read_text(encoding="utf-8"))
+                except (OSError, ValueError):
+                    continue
+                if not isinstance(raw, list) or not raw:
+                    continue
+                part = normalize_nager(cc, year, raw)
+                if not part:
+                    continue
+                for row in part:
+                    row["source"] = source
+                best[key] = part
+
     rows: list[dict] = []
-    failed: list[str] = []
-    for cc_dir in sorted(p for p in cache.iterdir() if p.is_dir()):
-        cc = cc_dir.name
-        for file in sorted(cc_dir.glob("*.json")):
-            try:
-                raw = json.loads(file.read_text(encoding="utf-8"))
-            except (OSError, ValueError):
-                failed.append(f"{cc}-{file.stem}")
-                continue
-            if not isinstance(raw, list):
-                failed.append(f"{cc}-{file.stem}")
-                continue
-            year = int(file.stem)
-            rows.extend(normalize_nager(cc, year, raw))
+    for part in best.values():
+        rows.extend(part)
+    failed = [f"{cc}-{year}" for cc, year in sorted(seen - set(best))]
 
     rows = dedupe(rows)
     rows = merge_rows(rows)
@@ -73,7 +96,9 @@ def main() -> int:
             "years": sorted({r["year"] for r in rows}),
             "failed": failed,
             "sources": [
-                {"name": "Nager.Date", "url": "https://date.nager.at", "license": "MIT"},
+                {"name": "Nager.Date", "url": "https://date.nager.at", "license": "MIT", "priority": 1},
+                {"name": "OpenHolidays API", "url": "https://openholidaysapi.org", "license": "see site terms", "priority": 2},
+                {"name": "python-holidays", "url": "https://github.com/vacanza/holidays", "license": "MIT", "priority": 3},
             ],
             "note": "Assembled from curl cache; spot-check against official sources before publishing.",
         },

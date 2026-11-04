@@ -21,6 +21,7 @@
 from __future__ import annotations
 
 import argparse
+import calendar
 import html
 import json
 import shutil
@@ -39,6 +40,8 @@ AFFILIATE_URL = ""
 CONTACT_EMAIL = "hello@example.com"
 ADSENSE_CLIENT = ""
 OFFICIAL_SOURCES: dict[str, dict] = {}
+OG_IMAGE = False
+GOOGLE_VERIFY = ""
 
 MONTHS_ABBR = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
@@ -199,6 +202,28 @@ tbody tr:hover{background:#fcfbf8}
 .activity .card h3{font-size:.98rem}
 @media(max-width:900px){.hero-inner,.hero-country{grid-template-columns:1fr}.foot-grid{grid-template-columns:1fr 1fr}}
 @media(max-width:600px){td,th{padding:10px 8px;font-size:.86rem}.hero{padding:44px 0 18px}.stats{gap:20px}}
+.lw-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px;margin:18px 0}
+.lw-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:20px;transition:transform .15s ease,box-shadow .15s ease}
+.lw-card:hover{transform:translateY(-2px);box-shadow:0 14px 34px rgba(21,22,26,.08)}
+.lw-days{font-family:var(--font-display);font-size:2.6rem;line-height:1;color:var(--accent)}
+.lw-days span{font-size:.72rem;color:var(--muted);font-family:var(--font-body);margin-left:8px;text-transform:uppercase;letter-spacing:.1em}
+.lw-card h3{margin:10px 0 2px;font-size:1.02rem}
+.lw-card .chips{margin-top:12px}
+.cal-year{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:14px}
+.cal-month{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-sm);padding:12px}
+.cal-title{font-weight:650;font-size:.9rem;margin-bottom:6px}
+.cal-head{display:grid;grid-template-columns:repeat(7,1fr);font-size:.66rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;text-align:center}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px}
+.cal-cell{font-size:.74rem;text-align:center;padding:5px 0;border-radius:6px;color:var(--ink)}
+.cal-cell.muted{color:transparent}
+.cal-weekend{background:var(--soft)}
+.cal-holiday{background:var(--accent);color:#fff;font-weight:700}
+.cal-legend{margin-top:14px;font-size:.78rem;color:var(--muted);display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.cal-key{display:inline-block;width:12px;height:12px;border-radius:4px;margin-left:12px}
+.cal-holiday-key{background:var(--accent)}
+.cal-weekend-key{background:var(--soft);border:1px solid var(--line)}
+.mobile-cta{display:none}
+@media(max-width:720px){.mobile-cta{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:30;gap:8px;padding:10px 14px;background:rgba(251,250,247,.97);border-top:1px solid var(--line);backdrop-filter:blur(12px)}.mobile-cta .btn{flex:1;padding:12px 16px}.site-foot{padding-bottom:104px}}
 """
 
 JS = """
@@ -471,7 +496,8 @@ def footer_html(base: str, verified: str) -> str:
 
 
 def render_page(*, title: str, description: str, canonical: str, base: str,
-                body: str, verified: str, json_ld: str = "") -> str:
+                body: str, verified: str, json_ld: str = "",
+                cta_href: str = "", cta_label: str = "Browse countries") -> str:
     head = (
         '<!doctype html><html lang="en"><head><meta charset="utf-8">'
         '<meta name="viewport" content="width=device-width,initial-scale=1">'
@@ -493,15 +519,33 @@ def render_page(*, title: str, description: str, canonical: str, base: str,
             '<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js'
             f'?client=ca-{esc(ADSENSE_CLIENT)}" crossorigin="anonymous"></script>'
         )
+    if GOOGLE_VERIFY:
+        head += f'<meta name="google-site-verification" content="{esc(GOOGLE_VERIFY)}">'
     if json_ld:
         head += f'<script type="application/ld+json">{json_ld}</script>'
+    if OG_IMAGE:
+        head += (
+            f'<meta property="og:image" content="{esc(SITE_URL)}/og-cover.png">'
+            '<meta name="twitter:card" content="summary_large_image">'
+            f'<meta name="twitter:title" content="{esc(title)}">'
+            f'<meta name="twitter:description" content="{esc(description)}">'
+        )
     body = body.replace('<section class="ad">[Ad slot]</section>', ad_unit())
     body = body.replace('<section class="ad">[Ad slot — AdSense / Ezoic]</section>', ad_unit())
+    mobile_href = cta_href or (base + "index.html#countries")
+    mobile_label = cta_label if cta_href else "Browse countries"
+    mobile_cta = (
+        '<div class="mobile-cta">'
+        f'<a class="btn" href="{mobile_href}">{esc(mobile_label)}</a>'
+        f'<a class="btn ghost" href="{base}holidays/index.html">Holiday guides</a>'
+        "</div>"
+    )
     return (
         head + "</head><body>"
         + nav_html(base)
         + '<main class="wrap">' + body + "</main>"
         + footer_html(base, verified)
+        + mobile_cta
         + f"<script>{JS}</script></body></html>"
     )
 
@@ -555,6 +599,75 @@ def long_weekend_table(runs: list[dict]) -> str:
         '<div class="tbl-wrap"><table><thead><tr>'
         "<th>Holiday</th><th>Days off</th><th>Base days</th><th>Ways to extend</th>"
         "</tr></thead><tbody>" + "".join(body) + "</tbody></table></div>"
+    )
+
+
+def long_weekend_cards(runs: list[dict], limit: int = 12) -> str:
+    cards: list[str] = []
+    for run in runs[:limit]:
+        options = [o for o in run["options"] if o["pto"] <= 2]
+        cheapest = any(o["pto"] == 1 and o["total"] >= 4 for o in options)
+        if run["baseTotal"] < 3 and not cheapest:
+            continue
+        best = max(options, key=lambda o: (o["total"], -o["pto"]))
+        chips = []
+        for opt in options:
+            if opt["pto"] == 0:
+                chips.append(f'<span class="chip">{opt["total"]} days · no leave</span>')
+            else:
+                chips.append(f'<span class="chip">{opt["pto"]} PTO → {opt["total"]} days</span>')
+        cards.append(
+            '<article class="lw-card">'
+            f'<div class="lw-days">{best["total"]}<span>days off</span></div>'
+            f"<h3>{esc(run['name'])}</h3>"
+            f'<p class="muted">{esc(fmt_range(run["start"], run["end"]))}</p>'
+            '<div class="chips">' + "".join(chips) + "</div>"
+            "</article>"
+        )
+    if not cards:
+        return '<p class="muted">No long weekends found for this year.</p>'
+    return '<div class="lw-grid">' + "".join(cards) + "</div>"
+
+
+def month_calendar_html(year: int, rows: list[dict]) -> str:
+    holidays: dict[date, list[str]] = {}
+    for row in rows:
+        try:
+            day = date.fromisoformat(str(row["date"]))
+        except (KeyError, ValueError):
+            continue
+        if day.year == year:
+            holidays.setdefault(day, []).append(str(row["name"]))
+    months: list[str] = []
+    for month in range(1, 13):
+        weeks = calendar.Calendar(firstweekday=0).monthdayscalendar(year, month)
+        cells: list[str] = []
+        for week in weeks:
+            for day in week:
+                if day == 0:
+                    cells.append('<div class="cal-cell muted"></div>')
+                    continue
+                d = date(year, month, day)
+                cls = "cal-cell"
+                if d.weekday() >= 5:
+                    cls += " cal-weekend"
+                if d in holidays:
+                    cls += " cal-holiday"
+                title = ", ".join(holidays.get(d, []))
+                cells.append(f'<div class="{cls}" title="{esc(title)}">{day}</div>')
+        head = "".join(f"<span>{w}</span>" for w in ["M", "T", "W", "T", "F", "S", "S"])
+        months.append(
+            '<div class="cal-month">'
+            f'<div class="cal-title">{calendar.month_name[month]}</div>'
+            f'<div class="cal-head">{head}</div>'
+            '<div class="cal-grid">' + "".join(cells) + "</div></div>"
+        )
+    return (
+        '<section class="sec"><h2>Calendar view</h2>'
+        '<p class="sub">Public holidays highlighted, weekends shaded.</p>'
+        '<div class="cal-year">' + "".join(months) + "</div>"
+        '<div class="cal-legend"><span class="cal-key cal-holiday-key"></span>Public holiday'
+        '<span class="cal-key cal-weekend-key"></span>Weekend</div></section>'
     )
 
 
@@ -759,7 +872,7 @@ def page_country(cc: str, name: str, slug: str, by_country, site_url: str, verif
         f'<div class="years">{year_nav}</div>'
         f'<section class="sec"><h2>Long weekends in {latest}</h2>'
         "<p>Each row shows a holiday run and how many days of leave turn it into a longer break.</p>"
-        + long_weekend_table(top_runs)
+        + long_weekend_cards(top_runs, 3)
         + f'<p><a class="btn" href="{latest}/long-weekends/index.html">See all long weekends</a></p>'
         "</section>"
         '<section class="ad">[Ad slot]</section>'
@@ -796,6 +909,8 @@ def page_country(cc: str, name: str, slug: str, by_country, site_url: str, verif
         body=body,
         verified=verified,
         json_ld=faq_json_ld(faq),
+        cta_href=f"calendar-{latest}.ics",
+        cta_label=f"Add {latest} to calendar",
     )
 
 
@@ -809,9 +924,10 @@ def page_year(cc: str, name: str, slug: str, year: int, rows: list[dict], runs: 
         "countdowns and the long weekends you can build around them.</p>"
         "</section>"
         + holiday_table(rows)
+        + month_calendar_html(year, rows)
         + '<section class="ad">[Ad slot]</section>'
         + f'<section class="sec"><h2>Long weekends and bridge days in {year}</h2>'
-        + long_weekend_table(runs[:8])
+        + long_weekend_cards(runs, 8)
         + f'<p><a class="btn ghost" href="long-weekends/index.html">Full {year} long weekend guide</a></p>'
         "</section>"
         + '<section class="sec" id="calendar"><h2>Subscribe</h2>'
@@ -836,6 +952,8 @@ def page_year(cc: str, name: str, slug: str, year: int, rows: list[dict], runs: 
         body=body,
         verified=verified,
         json_ld=faq_json_ld(faq),
+        cta_href=f"../calendar-{year}.ics",
+        cta_label=f"Add {year} to calendar",
     )
 
 
@@ -851,7 +969,7 @@ def page_long_weekends(cc: str, name: str, slug: str, year: int, runs: list[dict
         '<div class="callout"><strong>How to read this:</strong> “Base days” is the run of days off you get '
         "for free. Each pill tells you how many days of leave (<em>PTO</em>) connect that run to another "
         "weekend — more days off for the same leave.</div>"
-        + long_weekend_table(runs)
+        + long_weekend_cards(runs)
         + '<section class="ad">[Ad slot]</section>'
         '<section class="sec"><h2>Planning tip</h2>'
         "<p>Book long weekends early — flights and hotels around public holidays are the first to sell out. "
@@ -879,6 +997,8 @@ def page_long_weekends(cc: str, name: str, slug: str, year: int, runs: list[dict
         body=body,
         verified=verified,
         json_ld=faq_json_ld(faq),
+        cta_href=f"../calendar-{year}.ics",
+        cta_label=f"Add {year} to calendar",
     )
 
 
@@ -1317,14 +1437,17 @@ def main() -> int:
     parser.add_argument("--affiliate-url", default="", help="travel affiliate CTA URL")
     parser.add_argument("--contact-email", default="hello@example.com")
     parser.add_argument("--adsense-client", default="", help="AdSense publisher id, e.g. pub-0000000000000000")
+    parser.add_argument("--google-site-verification", default="", help="Google Search Console verification token")
     args = parser.parse_args()
 
-    global SITE_URL, AFFILIATE_URL, CONTACT_EMAIL, ADSENSE_CLIENT, OFFICIAL_SOURCES
+    global SITE_URL, AFFILIATE_URL, CONTACT_EMAIL, ADSENSE_CLIENT, OFFICIAL_SOURCES, OG_IMAGE, GOOGLE_VERIFY
     SITE_URL = args.site_url.rstrip("/")
     AFFILIATE_URL = args.affiliate_url
     CONTACT_EMAIL = args.contact_email
     ADSENSE_CLIENT = args.adsense_client
+    GOOGLE_VERIFY = args.google_site_verification.strip()
     OFFICIAL_SOURCES = load_official_sources(Path(args.official_sources))
+    OG_IMAGE = (ROOT / "assets" / "og-cover.png").exists()
 
     data_path = Path(args.data)
     sample_path = ROOT / "data" / "sample-holidays.json"
@@ -1494,6 +1617,8 @@ def main() -> int:
     # ── widget / CDN headers / ads.txt ──
     (out / "widget.js").write_text(WIDGET_JS, encoding="utf-8")
     (out / "favicon.svg").write_text(FAVICON_SVG, encoding="utf-8")
+    if OG_IMAGE:
+        shutil.copyfile(ROOT / "assets" / "og-cover.png", out / "og-cover.png")
     (out / "_headers").write_text(
         "/api/*\n  Access-Control-Allow-Origin: *\n  Cache-Control: public, max-age=3600\n"
         "/widget.js\n  Cache-Control: public, max-age=86400\n",
