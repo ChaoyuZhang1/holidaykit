@@ -1,0 +1,40 @@
+{
+  "meta": {
+    "generatedAt": "2026-11-03T00:00:00+00:00",
+    "countries": ["GB", "US"],
+    "years": [2026],
+    "sources": [
+      {"name": "Nager.Date", "url": "https://date.nager.at", "license": "MIT"}
+    ],
+    "note": "SAMPLE ONLY (US/GB 2026, fetched from Nager.Date). Run scripts/collect.py for full coverage."
+  },
+  "holidays": [
+    {"country": "US", "date": "2026-01-01", "name": "New Year's Day", "localName": "New Year's Day", "types": ["Public", "Bank"], "global": true, "counties": [], "year": 2026, "source": "nager.date"},
+    {"country": "US", "date": "2026-01-19", "name": "Martin Luther King, Jr. Day", "localName": "Martin Luther King, Jr. Day", "types": ["Public", "Bank"], "global": true, "counties": [], "year": 2026, "source": "nager.date"},
+    {"country": "US", "date": "2026-02-16", "name": "Presidents Day", "localName": "Washington's Birthday", "types": ["Public", "Bank"], "global": true, "counties": [], "year": 2026, "source": "nager.date"},
+    {"country": "US", "date": "2026-04-03", "name": "Good Friday", "localName": "Good Friday", "types": ["Public"], "global": false, "counties": ["US-CT", "US-DE", "US-HI", "US-IN", "US-KY", "US-LA", "US-NC", "US-ND", "US-NJ", "US-TN"], "year": 2026, "source": "nager.date"},
+    {"country": "US", "date": "2026-05-25", "name": "Memorial Day", "localName": "Memorial Day", "types": ["Public", "Bank"], "global": true, "counties": [], "year": 2026, "source": "nager.date"},
+    {"country": "US", "date": "2026-06-19", "name": "Juneteenth National Independence Day", "localName": "Juneteenth National Independence Day", "types": ["Public", "Bank"], "global": true, "counties": [], "year": 2026, "source": "nager.date"},
+    {"country": "US", "date": "2026-07-03", "name": "Independence Day", "localName": "Independence Day", "types": ["Public", "Bank"], "global": true, "counties": [], "year": 2026, "source": "nager.date"},
+    {"country": "US", "date": "2026-09-07", "name": "Labour Day", "localName": "Labor Day", "types": ["Public", "Bank"], "global": true, "counties": [], "year": 2026, "source": "nager.date"},
+    {"country": "US", "date": "2026-10-12", "name": "Columbus Day", "localName": "Columbus Day", "types": ["Bank"], "global": true, "counties": [], "year": 2026, "source": "nager.date"},
+    {"country": "US", "date": "2026-11-11", "name": "Veterans Day", "localName": "Veterans Day", "types": ["Public", "Bank"], "global": true, "counties": [], "year": 2026, "source": "nager.date"},
+    {"country": "US", "date": "2026-11-26", "name": "Thanksgiving Day", "localName": "Thanksgiving Day", "types": ["Public", "Bank"], "global": true, "counties": [], "year": 2026, "source": "nager.date"},
+    {"country": "US", "date": "2026-12-25", "name": "Christmas Day", "localName": "Christmas Day", "types": ["Public", "Bank"], "global": true, "counties": [], "year": 2026, "source": "nager.date"},
+
+    {"country": "GB", "date": "2026-01-01", "name": "New Year's Day", "localName": "New Year's Day", "types": ["Public"], "global": false, "counties": ["GB-ENG", "GB-NIR", "GB-SCT", "GB-WLS"], "year": 2026, "source": "nager.date"},
+    {"country": "GB", "date": "2026-01-02", "name": "2 January", "localName": "2 January", "types": ["Public"], "global": false, "counties": ["GB-SCT"], "year": 2026, "source": "nager.date"},
+    {"country": "GB", "date": "2026-03-17", "name": "Saint Patrick's Day", "localName": "Saint Patrick's Day", "types": ["Public"], "global": false, "counties": ["GB-NIR"], "year": 2026, "source": "nager.date"},
+    {"country": "GB", "date": "2026-04-03", "name": "Good Friday", "localName": "Good Friday", "types": ["Public"], "global": true, "counties": [], "year": 2026, "source": "nager.date"},
+    {"country": "GB", "date": "2026-04-06", "name": "Easter Monday", "localName": "Easter Monday", "types": ["Public"], "global": false, "counties": ["GB-ENG", "GB-NIR", "GB-WLS"], "year": 2026, "source": "nager.date"},
+    {"country": "GB", "date": "2026-05-04", "name": "Early May Bank Holiday", "localName": "Early May Bank Holiday", "types": ["Public"], "global": true, "counties": [], "year": 2026, "source": "nager.date"},
+    {"country": "GB", "date": "2026-05-25", "name": "Spring Bank Holiday", "localName": "Spring Bank Holiday", "types": ["Public"], "global": true, "counties": [], "year": 2026, "source": "nager.date"},
+    {"country": "GB", "date": "2026-06-15", "name": "World Cup Bank Holiday", "localName": "World Cup Bank Holiday", "types": ["Public"], "global": false, "counties": ["GB-SCT"], "year": 2026, "source": "nager.date"},
+    {"country": "GB", "date": "2026-07-13", "name": "Battle of the Boyne", "localName": "Battle of the Boyne", "types": ["Public"], "global": false, "counties": ["GB-NIR"], "year": 2026, "source": "nager.date"},
+    {"country": "GB", "date": "2026-08-03", "name": "Summer Bank Holiday", "localName": "Summer Bank Holiday", "types": ["Public"], "global": false, "counties": ["GB-SCT"], "year": 2026, "source": "nager.date"},
+    {"country": "GB", "date": "2026-08-31", "name": "Summer Bank Holiday", "localName": "Summer Bank Holiday", "types": ["Public"], "global": false, "counties": ["GB-ENG", "GB-NIR", "GB-WLS"], "year": 2026, "source": "nager.date"},
+    {"country": "GB", "date": "2026-11-30", "name": "Saint Andrew's Day", "localName": "Saint Andrew's Day", "types": ["Public"], "global": false, "counties": ["GB-SCT"], "year": 2026, "source": "nager.date"},
+    {"country": "GB", "date": "2026-12-25", "name": "Christmas Day", "localName": "Christmas Day", "types": ["Public"], "global": true, "counties": [], "year": 2026, "source": "nager.date"},
+    {"country": "GB", "date": "2026-12-28", "name": "Boxing Day", "localName": "St. Stephen's Day", "types": ["Public"], "global": true, "counties": [], "year": 2026, "source": "nager.date"}
+  ]
+}

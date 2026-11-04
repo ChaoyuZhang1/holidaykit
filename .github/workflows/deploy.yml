@@ -1,0 +1,43 @@
+name: deploy
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    # 每周一 03:00 UTC 重新采集（节假日是活数据）
+    - cron: "0 3 * * 1"
+  workflow_dispatch:
+
+jobs:
+  build-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Collect holidays
+        run: python scripts/collect.py
+
+      - name: Audit data (fails on schema/duplicate errors)
+        run: python scripts/audit.py
+
+      - name: Self-test build
+        run: python scripts/selftest.py
+
+      - name: Build site
+        run: >
+          python scripts/build_site.py
+          --site-url "${{ vars.SITE_URL }}"
+          --affiliate-url "${{ vars.AFFILIATE_URL }}"
+          --contact-email "${{ vars.CONTACT_EMAIL }}"
+          --adsense-client "${{ vars.ADSENSE_CLIENT }}"
+
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy dist --project-name ${{ vars.CF_PAGES_PROJECT }} --branch main

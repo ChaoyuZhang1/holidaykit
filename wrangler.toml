@@ -1,0 +1,11 @@
+# Cloudflare Pages 配置
+# 直接用 wrangler 上传静态产物时，`dist` 就是构建输出目录。
+name = "holidaykit"
+compatibility_date = "2026-11-01"
+pages_build_output_dir = "dist"
+
+# 可选：ICS 下载计数（Workers Analytics Engine）。
+# 不绑定也能部署，functions/ics-count.js 会静默跳过。
+# [[analytics_engine_datasets]]
+# binding = "ICS_EVENTS"
+# dataset = "holidaykit_ics"
