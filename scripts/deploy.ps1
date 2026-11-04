@@ -15,6 +15,8 @@ param(
   [string]$AffiliateUrl = "",
   [string]$ContactEmail = "hello@example.com",
   [string]$AdsenseClient = "",
+  [string]$GoogleVerification = "",
+  [string]$IndexNowKey = "",
   [switch]$SkipCollect
 )
 
