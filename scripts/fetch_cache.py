@@ -9,6 +9,7 @@ Usage: python scripts/fetch_cache.py
 from __future__ import annotations
 
 import concurrent.futures
+import shutil
 import subprocess
 import sys
 import time
@@ -16,6 +17,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 CACHE = ROOT / "data" / "cache"
+CURL = shutil.which("curl.exe") or shutil.which("curl") or "curl"
 YEARS = [2025, 2026, 2027, 2028]
 URL = "https://date.nager.at/api/v3/PublicHolidays/{year}/{cc}"
 WORKERS = 8
@@ -43,7 +45,7 @@ def fetch_one(cc: str, year: int) -> str:
     for attempt in range(4):
         try:
             subprocess.run(
-                ["curl.exe", "-s", "--max-time", "30", "-o", str(out), URL.format(year=year, cc=cc)],
+                [CURL, "-s", "--max-time", "30", "-o", str(out), URL.format(year=year, cc=cc)],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
                 timeout=40,

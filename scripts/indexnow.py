@@ -12,11 +12,13 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import shutil
 import subprocess
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+CURL = shutil.which("curl.exe") or shutil.which("curl") or "curl"
 
 
 def main() -> int:
@@ -51,8 +53,7 @@ def main() -> int:
     print(f"submitting {len(urls)} URLs to IndexNow for {host}")
     result = subprocess.run(
         [
-            "curl.exe", "-s", "--max-time", "60",
-            "-X", "POST",
+            CURL, "-s", "--max-time", "60",            "-X", "POST",
             "-H", "content-type: application/json; charset=utf-8",
             "--data-binary", f"@{payload_path}",
             "-w", "\nstatus=%{http_code}",

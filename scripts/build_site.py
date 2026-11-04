@@ -42,6 +42,8 @@ ADSENSE_CLIENT = ""
 OFFICIAL_SOURCES: dict[str, dict] = {}
 OG_IMAGE = False
 GOOGLE_VERIFY = ""
+SCHOOL_DATA: dict = {}
+SCHOOL_NAMES: dict = {}
 
 MONTHS_ABBR = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
@@ -461,6 +463,7 @@ def nav_html(base: str) -> str:
         f'<a href="{base}index.html#countries">Countries</a>'
         f'<a href="{base}holidays/index.html">Holiday guides</a>'
         f'<a href="{base}days-until/index.html">Countdowns</a>'
+        f'<a href="{base}compare/index.html">Compare</a>'
         f'<a href="{base}api/index.html">API</a>'
         "</nav></div></header>"
     )
@@ -478,7 +481,9 @@ def footer_html(base: str, verified: str) -> str:
         '<div><strong>Explore</strong>'
         f'<a href="{base}index.html#countries">All countries</a>'
         f'<a href="{base}holidays/index.html">Holiday guides</a>'
-        f'<a href="{base}days-until/index.html">Countdowns</a></div>'
+        f'<a href="{base}days-until/index.html">Countdowns</a>'
+        f'<a href="{base}compare/index.html">Compare countries</a>'
+        f'<a href="{base}school-holidays/index.html">School holidays</a></div>'
         '<div><strong>Developers</strong>'
         f'<a href="{base}api/index.html">Free API</a>'
         f'<a href="{base}embed/index.html">Embed widget</a>'
@@ -1046,6 +1051,218 @@ def page_static(slug: str, title: str, body_html: str, site_url: str, verified: 
     )
 
 
+# ── school holidays & country comparison ───────────────────────────────────
+
+def load_school(path: Path) -> tuple[dict, dict]:
+    try:
+        raw = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}, {}
+    if not isinstance(raw, dict):
+        return {}, {}
+    return raw.get("countries") or {}, raw.get("countryNames") or {}
+
+
+def school_ics(cc: str, name: str, year: int, ranges: list[dict]) -> str:
+    lines = [
+        "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//HolidayKit//EN",
+        "CALSCALE:GREGORIAN", "METHOD:PUBLISH",
+        f"X-WR-CALNAME:{ics_escape(name)} school holidays {year}",
+    ]
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    for index, item in enumerate(ranges):
+        try:
+            start = date.fromisoformat(item["start"])
+            end = date.fromisoformat(item["end"])
+        except (KeyError, ValueError):
+            continue
+        summary = f"{item.get('name', 'School holiday')} ({item.get('region', '')})"
+        lines.extend([
+            "BEGIN:VEVENT",
+            f"UID:school-{cc}-{year}-{index}@holidaykit",
+            f"DTSTAMP:{stamp}",
+            f"DTSTART;VALUE=DATE:{start.strftime('%Y%m%d')}",
+            f"DTEND;VALUE=DATE:{(end + timedelta(days=1)).strftime('%Y%m%d')}",
+            f"SUMMARY:{ics_escape(summary)}",
+            "TRANSP:TRANSPARENT",
+            "END:VEVENT",
+        ])
+    lines.append("END:VCALENDAR")
+    return "\r\n".join(lines) + "\r\n"
+
+
+def page_school(cc: str, name: str, years_data: dict, site_url: str, verified: str) -> str:
+    slug = slugify(name)
+    years = sorted((int(y) for y in years_data), reverse=True)
+    blocks: list[str] = []
+    for year in years:
+        ranges = years_data.get(str(year)) or years_data.get(year) or []
+        if not ranges:
+            continue
+        rows = []
+        for item in ranges:
+            try:
+                start = date.fromisoformat(item["start"])
+                end = date.fromisoformat(item["end"])
+            except (KeyError, ValueError):
+                continue
+            days = int(item.get("days") or ((end - start).days + 1))
+            rows.append(
+                "<tr>"
+                f"<td>{esc(item.get('region', ''))}</td>"
+                f"<td>{esc(item.get('name', ''))}</td>"
+                f"<td>{esc(fmt_range(start, end))}</td>"
+                f"<td>{days}</td>"
+                "</tr>"
+            )
+        blocks.append(
+            f'<section class="sec"><h2>{year} school holidays</h2>'
+            '<div class="tbl-wrap"><table><thead><tr>'
+            "<th>Region</th><th>Break</th><th>Dates</th><th>Days</th>"
+            "</tr></thead><tbody>" + "".join(rows) + "</tbody></table></div>"
+            f'<p><a class="btn ghost" href="calendar-{year}.ics">Add {year} school calendar</a></p>'
+            "</section>"
+        )
+    faq = [
+        ("Are school holidays the same across the country?",
+         "No — most countries set them region by region, so each region is listed separately."),
+        ("Why are some years missing?",
+         "School calendars are published progressively; future years are added as official sources release them."),
+    ]
+    body = (
+        '<section class="hero-country"><div>'
+        f'<p class="eyebrow">{esc(cc)} · school calendar</p>'
+        f'<h1><span class="flag">{flag_emoji(cc)}</span> {esc(name)} school holidays</h1>'
+        f'<p class="lede">Official school break dates for {esc(name)} by region, with one-click '
+        "calendar subscriptions.</p></div>"
+        '<aside class="next-holiday"><div class="flag">🎒</div><h3>What this is</h3>'
+        '<p class="muted">School breaks by region from OpenHolidays. Region codes are the official '
+        "subdivisions.</p></aside></section>"
+        + "".join(blocks)
+        + '<section class="sec"><h2>FAQ</h2>' + faq_block(faq) + "</section>"
+        f'<p><a href="../index.html">← All school calendars</a> · '
+        f'<a href="../../{slug}/index.html">Public holidays</a></p>'
+    )
+    first_year = years[0] if years else 2026
+    return render_page(
+        title=f"{name} School Holidays by Region | {SITE_NAME}",
+        description=f"{name} school holiday dates by region (2025–2028), with calendar subscriptions.",
+        canonical=f"{site_url}/school-holidays/{slug}/",
+        base="../../",
+        body=body,
+        verified=verified,
+        json_ld=faq_json_ld(faq),
+        cta_href=f"calendar-{first_year}.ics",
+        cta_label="Add school calendar",
+    )
+
+
+def page_school_index(items: list[tuple[str, str]], site_url: str, verified: str) -> str:
+    cards = "".join(
+        f'<a class="card" href="{slug}/index.html"><div class="flag">🎒</div>'
+        f"<h3>{esc(name)}</h3><p>School breaks by region</p></a>"
+        for slug, name in items
+    )
+    body = (
+        '<section class="hero"><p class="eyebrow">School calendars</p>'
+        "<h1>School holidays by country</h1>"
+        '<p class="lede">Official school break dates by region, with calendar subscriptions. '
+        "Coverage is expanding as sources publish future calendars.</p></section>"
+        '<div class="grid">' + cards + "</div>"
+        '<p><a href="../index.html">← All countries</a></p>'
+    )
+    return render_page(
+        title=f"School Holidays by Country | {SITE_NAME}",
+        description="School holiday dates by country and region, with calendar subscriptions.",
+        canonical=f"{site_url}/school-holidays/",
+        base="../",
+        body=body,
+        verified=verified,
+    )
+
+
+def page_compare(a: tuple, b: tuple, year: int, rows_a: list[dict], rows_b: list[dict],
+                 site_url: str, verified: str) -> str:
+    a_cc, a_name, a_slug = a
+    b_cc, b_name, b_slug = b
+    common = {r["date"] for r in rows_a} & {r["date"] for r in rows_b}
+    pair_slug = f"{a_slug}-vs-{b_slug}-holidays"
+
+    def holiday_table(rows: list[dict], label: str, link: str) -> str:
+        body_rows = []
+        for row in sorted(rows, key=lambda r: r["date"]):
+            d = date.fromisoformat(row["date"])
+            body_rows.append(
+                "<tr>"
+                f"<td>{esc(fmt_date(d))}</td>"
+                f"<td>{esc(fmt_weekday(d))}</td>"
+                f"<td>{esc(row['name'])}</td>"
+                "</tr>"
+            )
+        return (
+            f'<section class="sec"><h2><a href="{link}">{esc(label)}</a> — {year}</h2>'
+            '<div class="tbl-wrap"><table><thead><tr><th>Date</th><th>Day</th><th>Holiday</th>'
+            "</tr></thead><tbody>" + "".join(body_rows) + "</tbody></table></div></section>"
+        )
+
+    faq = [
+        (f"Does {a_name} have more public holidays than {b_name}?",
+         f"In {year}: {len(rows_a)} vs {len(rows_b)}. Regional holidays are included in the counts."),
+        ("Which holidays fall on the same date?",
+         f"{len(common)} dates overlap in {year} — see both tables above."),
+    ]
+    body = (
+        '<section class="hero"><p class="eyebrow">Country comparison</p>'
+        f"<h1>{esc(a_name)} vs {esc(b_name)} holidays {year}</h1>"
+        f'<p class="lede">Side-by-side public holidays: {len(rows_a)} in {esc(a_name)}, '
+        f"{len(rows_b)} in {esc(b_name)}, {len(common)} on the same date.</p>"
+        '<div class="chips">'
+        f'<span class="chip">{esc(a_name)}: {len(rows_a)} holidays</span>'
+        f'<span class="chip">{esc(b_name)}: {len(rows_b)} holidays</span>'
+        f'<span class="chip">Same date: {len(common)}</span>'
+        "</div></section>"
+        + holiday_table(rows_a, a_name, f"../../{a_slug}/index.html")
+        + holiday_table(rows_b, b_name, f"../../{b_slug}/index.html")
+        + '<section class="ad">[Ad slot]</section>'
+        + '<section class="sec"><h2>FAQ</h2>' + faq_block(faq) + "</section>"
+        '<p><a href="../index.html">← All comparisons</a></p>'
+    )
+    return render_page(
+        title=f"{a_name} vs {b_name} Holidays {year}: Side-by-Side | {SITE_NAME}",
+        description=f"Compare {a_name} and {b_name} public holidays in {year}: {len(rows_a)} vs "
+                    f"{len(rows_b)}, {len(common)} on the same date.",
+        canonical=f"{site_url}/compare/{pair_slug}/",
+        base="../../",
+        body=body,
+        verified=verified,
+        json_ld=faq_json_ld(faq),
+    )
+
+
+def page_compare_index(items: list[tuple[str, str, str, int]], site_url: str, verified: str) -> str:
+    cards = "".join(
+        f'<a class="card" href="{pair_slug}/index.html"><div class="flag">⚖️</div>'
+        f"<h3>{esc(a_name)} vs {esc(b_name)}</h3><p>Holidays side by side · {year}</p></a>"
+        for pair_slug, a_name, b_name, year in items
+    )
+    body = (
+        '<section class="hero"><p class="eyebrow">Compare</p>'
+        "<h1>Compare public holidays between countries</h1>"
+        '<p class="lede">Side-by-side holiday calendars for expats, remote workers and travel planning.</p>'
+        "</section>"
+        '<div class="grid">' + cards + "</div>"
+        '<p><a href="../index.html">← All countries</a></p>'
+    )
+    return render_page(
+        title=f"Compare Public Holidays Between Countries | {SITE_NAME}",
+        description="Compare public holidays side by side for major country pairs.",
+        canonical=f"{site_url}/compare/",
+        base="../",
+        body=body,
+        verified=verified,
+    )
+
+
 # ── holiday guides / countdowns / growth & monetisation ────────────────────
 
 def holiday_slug(name: str) -> str:
@@ -1148,6 +1365,10 @@ def popular_sections(catalog: dict, today: date) -> str:
         "<p>JSON for every country and year. CORS enabled, no key required.</p></a>"
         '<a class="card" href="embed/index.html"><h3>Embed widget</h3>'
         "<p>A live holiday calendar in one script tag.</p></a>"
+        '<a class="card" href="compare/index.html"><h3>Compare countries</h3>'
+        "<p>Side-by-side holidays for expats and remote workers.</p></a>"
+        '<a class="card" href="school-holidays/index.html"><h3>School holidays</h3>'
+        "<p>Official school breaks by region, with calendar links.</p></a>"
         '<a class="card" href="premium/index.html"><h3>Premium</h3>'
         "<p>Multi-country planner, alerts and PTO export — coming soon.</p></a>"
         "</div></section>"
@@ -1441,13 +1662,14 @@ def main() -> int:
     parser.add_argument("--indexnow-key", default="", help="IndexNow key (written as /{key}.txt for Bing/Yandex)")
     args = parser.parse_args()
 
-    global SITE_URL, AFFILIATE_URL, CONTACT_EMAIL, ADSENSE_CLIENT, OFFICIAL_SOURCES, OG_IMAGE, GOOGLE_VERIFY
+    global SITE_URL, AFFILIATE_URL, CONTACT_EMAIL, ADSENSE_CLIENT, OFFICIAL_SOURCES, OG_IMAGE, GOOGLE_VERIFY, SCHOOL_DATA, SCHOOL_NAMES
     SITE_URL = args.site_url.rstrip("/")
     AFFILIATE_URL = args.affiliate_url
     CONTACT_EMAIL = args.contact_email
     ADSENSE_CLIENT = args.adsense_client
     GOOGLE_VERIFY = args.google_site_verification.strip()
     OFFICIAL_SOURCES = load_official_sources(Path(args.official_sources))
+    SCHOOL_DATA, SCHOOL_NAMES = load_school(ROOT / "data" / "school.json")
     OG_IMAGE = (ROOT / "assets" / "og-cover.png").exists()
 
     data_path = Path(args.data)
@@ -1550,7 +1772,7 @@ def main() -> int:
 
     # ── holiday guides & countdowns ──
     ranked = sorted(catalog.items(), key=lambda kv: (-len({r["country"] for r in kv[1]}), kv[0]))
-    top_items = [(holiday_slug(name), name) for name, _ in ranked[:60]]
+    top_items = [(holiday_slug(name), name) for name, _ in ranked[:150]]
     for hslug, hname in top_items:
         hdir = out / "holidays" / hslug
         hdir.mkdir(parents=True, exist_ok=True)
@@ -1575,6 +1797,61 @@ def main() -> int:
     (out / "days-until" / "index.html").write_text(
         holiday_index_page("countdown", top_items, site_url, verified), encoding="utf-8")
     urls.append(("days-until/", "0.7"))
+
+    # ── school holidays ──
+    if SCHOOL_DATA:
+        school_items = []
+        for cc in sorted(SCHOOL_DATA):
+            name = COUNTRY_NAMES.get(cc) or SCHOOL_NAMES.get(cc) or cc
+            sdir = out / "school-holidays" / slugify(name)
+            sdir.mkdir(parents=True, exist_ok=True)
+            (sdir / "index.html").write_text(
+                page_school(cc, name, SCHOOL_DATA[cc], site_url, verified), encoding="utf-8")
+            school_items.append((slugify(name), name))
+            urls.append((f"school-holidays/{slugify(name)}/", "0.7"))
+            for year in sorted(int(y) for y in SCHOOL_DATA[cc]):
+                ranges = SCHOOL_DATA[cc].get(str(year)) or []
+                if ranges:
+                    (sdir / f"calendar-{year}.ics").write_text(
+                        school_ics(cc, name, year, ranges), encoding="utf-8")
+        (out / "school-holidays").mkdir(exist_ok=True)
+        (out / "school-holidays" / "index.html").write_text(
+            page_school_index(school_items, site_url, verified), encoding="utf-8")
+        urls.append(("school-holidays/", "0.7"))
+
+    # ── country comparisons ──
+    country_by_code = {c[0]: c for c in countries}
+    compare_pairs = [
+        ("US", "GB"), ("US", "CA"), ("US", "AU"), ("US", "DE"), ("US", "JP"),
+        ("GB", "DE"), ("GB", "FR"), ("GB", "IE"), ("DE", "FR"), ("DE", "AT"),
+        ("FR", "ES"), ("ES", "IT"), ("NL", "BE"), ("CH", "AT"), ("SE", "NO"),
+        ("PL", "CZ"), ("AU", "NZ"), ("JP", "KR"), ("CN", "HK"), ("SG", "MY"),
+        ("BR", "MX"), ("CA", "AU"), ("GB", "JP"), ("IN", "PK"),
+    ]
+    compare_items = []
+    for a_cc, b_cc in compare_pairs:
+        if a_cc not in country_by_code or b_cc not in country_by_code:
+            continue
+        common_years = set(by_country[a_cc]) & set(by_country[b_cc])
+        if not common_years:
+            continue
+        year = 2026 if 2026 in common_years else max(common_years)
+        a = country_by_code[a_cc]
+        b = country_by_code[b_cc]
+        pair_slug = f"{a[2]}-vs-{b[2]}-holidays"
+        pdir = out / "compare" / pair_slug
+        pdir.mkdir(parents=True, exist_ok=True)
+        (pdir / "index.html").write_text(
+            page_compare(a, b, year, by_country[a_cc][year], by_country[b_cc][year],
+                         site_url, verified),
+            encoding="utf-8",
+        )
+        compare_items.append((pair_slug, a[1], b[1], year))
+        urls.append((f"compare/{pair_slug}/", "0.6"))
+    (out / "compare").mkdir(exist_ok=True)
+    (out / "compare" / "index.html").write_text(
+        page_compare_index(compare_items, site_url, verified), encoding="utf-8")
+    urls.append(("compare/", "0.7"))
 
     # ── static API (JSON) ──
     api_v1 = out / "api" / "v1"

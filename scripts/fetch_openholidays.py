@@ -9,6 +9,7 @@ Usage: python scripts/fetch_openholidays.py
 from __future__ import annotations
 
 import json
+import shutil
 import subprocess
 import time
 from pathlib import Path
@@ -16,6 +17,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "data" / "cache_oh"
 CACHE = ROOT / "data" / "cache"
+CURL = shutil.which("curl.exe") or shutil.which("curl") or "curl"
 YEARS = [2025, 2026, 2027, 2028]
 BASE = "https://openholidaysapi.org"
 
@@ -24,7 +26,7 @@ def curl_json(url: str, out_path: Path) -> bool:
     for attempt in range(3):
         try:
             subprocess.run(
-                ["curl.exe", "-s", "--max-time", "30", "-o", str(out_path), url],
+                [CURL, "-s", "--max-time", "30", "-o", str(out_path), url],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
                 timeout=40,
