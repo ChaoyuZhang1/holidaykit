@@ -69,6 +69,11 @@ COUNTRY_NAMES = {
     "PE": "Peru", "RS": "Serbia", "RU": "Russia", "SI": "Slovenia",
     "SK": "Slovakia", "TN": "Tunisia", "TW": "Taiwan", "UA": "Ukraine",
     "UY": "Uruguay", "VE": "Venezuela", "BG": "Bulgaria", "PK": "Pakistan",
+    "AD": "Andorra", "AL": "Albania", "BY": "Belarus", "IL": "Israel",
+    "JO": "Jordan", "KW": "Kuwait", "LB": "Lebanon", "LI": "Liechtenstein",
+    "LK": "Sri Lanka", "MC": "Monaco", "MD": "Moldova", "MU": "Mauritius",
+    "OM": "Oman", "QA": "Qatar", "SA": "Saudi Arabia", "SM": "San Marino",
+    "UZ": "Uzbekistan", "VA": "Vatican City", "ME": "Montenegro", "BA": "Bosnia and Herzegovina",
 }
 
 
@@ -1955,17 +1960,47 @@ def main() -> int:
     urls.extend([("privacy/", "0.2"), ("about/", "0.2")])
 
     # sitemap + robots
-    sitemap = ['<?xml version="1.0" encoding="UTF-8"?>',
-               '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
+    # full URL list (manual submission / debugging)
+    all_lines = ['<?xml version="1.0" encoding="UTF-8"?>',
+                 '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
     for path, priority in urls:
-        sitemap.append(
+        all_lines.append(
             f"<url><loc>{site_url}/{path}</loc><lastmod>{verified}</lastmod>"
             f"<priority>{priority}</priority></url>"
         )
-    sitemap.append("</urlset>")
-    (out / "sitemap.xml").write_text("\n".join(sitemap), encoding="utf-8")
+    all_lines.append("</urlset>")
+    (out / "sitemap-all.xml").write_text("\n".join(all_lines), encoding="utf-8")
+
+    # chunked sitemap index: /sitemap.xml IS the index (better for Search Console)
+    chunk_size = 500
+    chunk_names = []
+    for start in range(0, len(urls), chunk_size):
+        chunk = urls[start:start + chunk_size]
+        chunk_name = f"sitemap-{start // chunk_size + 1}.xml"
+        chunk_lines = ['<?xml version="1.0" encoding="UTF-8"?>',
+                       '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
+        for path, priority in chunk:
+            chunk_lines.append(
+                f"<url><loc>{site_url}/{path}</loc><lastmod>{verified}</lastmod>"
+                f"<priority>{priority}</priority></url>"
+            )
+        chunk_lines.append("</urlset>")
+        (out / chunk_name).write_text("\n".join(chunk_lines), encoding="utf-8")
+        chunk_names.append(chunk_name)
+    index_lines = ['<?xml version="1.0" encoding="UTF-8"?>',
+                   '<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
+    for chunk_name in chunk_names:
+        index_lines.append(
+            f"<sitemap><loc>{site_url}/{chunk_name}</loc><lastmod>{verified}</lastmod></sitemap>"
+        )
+    index_lines.append("</sitemapindex>")
+    index_text = "\n".join(index_lines)
+    (out / "sitemap.xml").write_text(index_text, encoding="utf-8")
+    (out / "sitemap_index.xml").write_text(index_text, encoding="utf-8")
+
     (out / "robots.txt").write_text(
-        "User-agent: *\nAllow: /\nSitemap: " + site_url + "/sitemap.xml\n", encoding="utf-8"
+        "User-agent: *\nAllow: /\nSitemap: " + site_url + "/sitemap.xml\n",
+        encoding="utf-8",
     )
 
     print(f"Built {len(urls)} pages for {len(countries)} countries -> {out}")

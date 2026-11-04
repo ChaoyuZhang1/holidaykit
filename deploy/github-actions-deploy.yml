@@ -27,6 +27,9 @@ jobs:
       - name: Collect (OpenHolidays)
         run: python scripts/fetch_openholidays.py
 
+      - name: Collect (school holidays)
+        run: python scripts/fetch_school.py
+
       - name: Collect (python-holidays fallback)
         run: python scripts/fetch_lib.py
 

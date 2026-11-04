@@ -33,6 +33,10 @@ def main() -> int:
     if not sitemap.exists():
         print(f"sitemap not found: {sitemap}\nBuild the site first.")
         return 1
+    # /sitemap.xml is a sitemapindex now; prefer the flat URL list for submission.
+    flat = sitemap.parent / "sitemap-all.xml"
+    if flat.exists():
+        sitemap = flat
     text = sitemap.read_text(encoding="utf-8")
     urls = re.findall(r"<loc>(.*?)</loc>", text)[: args.limit]
     if not urls:
