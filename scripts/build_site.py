@@ -253,6 +253,32 @@ tbody tr:hover{background:#fcfbf8}
 .cal-date{flex:0 0 auto;color:var(--muted);font-variant-numeric:tabular-nums;min-width:50px}
 .cal-month .cal-list{font-size:.7rem;margin-top:8px;gap:3px}
 .cal-month .cal-date{min-width:42px}
+.lang-select{border:1px solid var(--line);background:var(--surface);color:var(--ink-soft);border-radius:9px;padding:4px 6px;font-size:.8rem;margin-left:12px}
+@media(max-width:900px){
+  .head-inner{height:auto;min-height:56px;flex-wrap:wrap;row-gap:6px;padding:8px 0}
+  .site-head nav{order:3;width:100%;overflow-x:auto;gap:14px;padding:0 0 4px;white-space:nowrap}
+  .site-head nav a{white-space:nowrap;font-size:.82rem}
+  .lang-select{margin-left:auto}
+  body{padding-bottom:76px}
+  .site-foot{padding-bottom:110px}
+}
+@media(max-width:600px){
+  .hero h1,.hero-country h1{font-size:clamp(1.55rem,6.4vw,2.1rem)}
+  .hero .lede,.hero-country .lede{font-size:.98rem}
+  .hero-cal{padding:14px}
+  .cal-single{min-width:0}
+  .cal-single .cal-cell{padding:10px 0;font-size:.88rem}
+  .grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}
+  .card{padding:14px}
+  .foot-grid{grid-template-columns:1fr 1fr;gap:18px}
+  .cal-list li{font-size:.76rem}
+  .cal-date{min-width:44px}
+  .two-col{grid-template-columns:1fr}
+  .cal-year{grid-template-columns:1fr}
+  .stats{gap:18px 26px}
+  .stat .num{font-size:1.5rem}
+  .cta-row .btn{flex:1 1 auto}
+}
 """
 
 JS = """
@@ -330,7 +356,10 @@ HOME_CAL_JS = r"""
   };
   function pad(n){ return (n < 10 ? '0' : '') + n; }
   function key(d){ return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
-  function monthLabel(){ return new Date(state.year, state.month, 1).toLocaleDateString(undefined, { month: 'long', year: 'numeric' }); }
+  function monthLabel(){
+    var loc = (window.HKI18N ? window.HKI18N.locale() : undefined);
+    return new Date(state.year, state.month, 1).toLocaleDateString(loc, { month: 'long', year: 'numeric' });
+  }
   function holidayMap(){
     var map = {};
     ((state.data && state.data.holidays) || []).forEach(function (h) {
@@ -353,7 +382,8 @@ HOME_CAL_JS = r"""
     var first = new Date(state.year, state.month, 1);
     var start = (first.getDay() + 6) % 7;
     var days = new Date(state.year, state.month + 1, 0).getDate();
-    var heads = ['M','T','W','T','F','S','S'].map(function(w){ return '<span>' + w + '</span>'; }).join('');
+    var heads = ((window.HKI18N ? window.HKI18N.t('cal.week') : 'M,T,W,T,F,S,S'))
+      .split(',').map(function (w) { return '<span>' + w + '</span>'; }).join('');
     var html = '<div class="cal-head">' + heads + '</div><div class="cal-grid">';
     var i;
     for (i = 0; i < start; i++) html += '<div class="cal-cell muted"></div>';
@@ -433,7 +463,182 @@ HOME_CAL_JS = r"""
   if (next) next.addEventListener('click', function(){
     state.month++; if (state.month > 11) { state.month = 0; state.year++; loadYear(render); } else { render(); }
   });
+  document.addEventListener('hk-lang-changed', function(){ render(); });
   init();
+})();
+"""
+
+# UI i18n (chrome strings only; holiday names stay in their original/local form)
+I18N_JS = r"""
+(function(){
+  var D = {
+    en: {
+      'nav.countries':'Countries','nav.guides':'Holiday guides','nav.countdowns':'Countdowns',
+      'nav.compare':'Compare','nav.api':'API',
+      'hero.eyebrow':'Public holidays · long weekends','hero.title':'Plan your year around long weekends.',
+      'hero.lede':'Every public holiday, the longest breaks you can build around them, and one-click calendar subscriptions.',
+      'hero.cta.browse':'Browse countries',
+      'stats.countries':'Countries','stats.holidays':'Holidays','stats.years':'Years covered',
+      'sec.browse':'Browse countries','sec.browse.sub':'Every holiday, long weekend and bridge day, country by country.',
+      'sec.how':'How HolidayKit works',
+      'how.1.t':'1 · Pick a country','how.1.p':'See every official public holiday, including regional ones.',
+      'how.2.t':'2 · Find the long weekend','how.2.p':'Bridge days show how much leave turns a holiday into 4–6 days off.',
+      'how.3.t':'3 · Add it to your calendar','how.3.p':'One .ics link for Google Calendar, Apple Calendar and Outlook.',
+      'cal.open':'Open full calendar','cal.week':'M,T,W,T,F,S,S',
+      'foot.explore':'Explore','foot.developers':'Developers','foot.data':'Data',
+      'foot.all':'All countries','foot.school':'School holidays','foot.embed':'Embed widget',
+      'foot.premium':'Premium','foot.about':'About & sources','foot.privacy':'Privacy',
+      'foot.note':'Data from open sources, cross-checked against official announcements.',
+      'cta.browse':'Browse countries'
+    },
+    zh: {
+      'nav.countries':'国家','nav.guides':'节日指南','nav.countdowns':'倒计时',
+      'nav.compare':'国家对比','nav.api':'API',
+      'hero.eyebrow':'公共假期 · 长周末','hero.title':'围绕长周末规划你的一年。',
+      'hero.lede':'每个国家的公共假期、能拼出的最长假期，以及一键订阅日历。',
+      'hero.cta.browse':'浏览国家',
+      'stats.countries':'国家','stats.holidays':'假期','stats.years':'覆盖年份',
+      'sec.browse':'浏览国家','sec.browse.sub':'按国家查看每个公共假期、长周末与桥假。',
+      'sec.how':'HolidayKit 怎么用',
+      'how.1.t':'1 · 选择国家','how.1.p':'查看全部法定假期，包括地区性假期。',
+      'how.2.t':'2 · 找到长周末','how.2.p':'桥假告诉你请几天假能连休 4–6 天。',
+      'how.3.t':'3 · 加入日历','how.3.p':'一个 .ics 链接支持 Google、Apple、Outlook 日历。',
+      'cal.open':'打开完整日历','cal.week':'一,二,三,四,五,六,日',
+      'foot.explore':'探索','foot.developers':'开发者','foot.data':'数据',
+      'foot.all':'全部国家','foot.school':'学校假期','foot.embed':'嵌入组件',
+      'foot.premium':'会员','foot.about':'关于与数据来源','foot.privacy':'隐私政策',
+      'foot.note':'数据来自公开来源，并对照官方公告核对。',
+      'cta.browse':'浏览国家'
+    },
+    ja: {
+      'nav.countries':'国一覧','nav.guides':'祝日ガイド','nav.countdowns':'カウントダウン',
+      'nav.compare':'国比較','nav.api':'API',
+      'hero.eyebrow':'祝日 · 長い週末','hero.title':'長い週末を中心に一年を計画しよう。',
+      'hero.lede':'各国の祝日、作れる最長の連休、ワンクリックのカレンダー購読。',
+      'hero.cta.browse':'国を見る',
+      'stats.countries':'国','stats.holidays':'祝日','stats.years':'対象年',
+      'sec.browse':'国一覧','sec.browse.sub':'国ごとに祝日・長い週末・橋渡し休暇を確認。',
+      'sec.how':'HolidayKit の使い方',
+      'how.1.t':'1 · 国を選ぶ','how.1.p':'地域ごとの祝日も含めて確認できます。',
+      'how.2.t':'2 · 長い週末を探す','how.2.p':'有給を何日使うと 4〜6 連休になるかが分かります。',
+      'how.3.t':'3 · カレンダーに追加','how.3.p':'1 つの .ics リンクで Google / Apple / Outlook に対応。',
+      'cal.open':'カレンダーを開く','cal.week':'月,火,水,木,金,土,日',
+      'foot.explore':'探索','foot.developers':'開発者','foot.data':'データ',
+      'foot.all':'すべての国','foot.school':'学校休暇','foot.embed':'埋め込み',
+      'foot.premium':'プレミアム','foot.about':'概要と出典','foot.privacy':'プライバシー',
+      'foot.note':'データは公開情報を基に公式発表と照合しています。',
+      'cta.browse':'国を見る'
+    },
+    ko: {
+      'nav.countries':'국가','nav.guides':'공휴일 가이드','nav.countdowns':'카운트다운',
+      'nav.compare':'국가 비교','nav.api':'API',
+      'hero.eyebrow':'공휴일 · 긴 주말','hero.title':'긴 주말 중심으로 한 해를 계획하세요.',
+      'hero.lede':'모든 공휴일, 만들 수 있는 가장 긴 연휴, 원클릭 캘린더 구독.',
+      'hero.cta.browse':'국가 보기',
+      'stats.countries':'국가','stats.holidays':'공휴일','stats.years':'대상 연도',
+      'sec.browse':'국가 목록','sec.browse.sub':'국가별 공휴일·긴 주말·징검다리 휴일을 확인하세요.',
+      'sec.how':'HolidayKit 사용법',
+      'how.1.t':'1 · 국가 선택','how.1.p':'지역별 공휴일까지 모두 확인할 수 있습니다.',
+      'how.2.t':'2 · 긴 주말 찾기','how.2.p':'연차 며칠로 4~6일 연휴를 만들 수 있는지 보여줍니다.',
+      'how.3.t':'3 · 캘린더에 추가','how.3.p':'하나의 .ics 링크로 Google·Apple·Outlook 지원.',
+      'cal.open':'전체 캘린더 열기','cal.week':'월,화,수,목,금,토,일',
+      'foot.explore':'둘러보기','foot.developers':'개발자','foot.data':'데이터',
+      'foot.all':'모든 국가','foot.school':'방학','foot.embed':'임베드',
+      'foot.premium':'프리미엄','foot.about':'소개 및 출처','foot.privacy':'개인정보',
+      'foot.note':'공개 데이터와 공식 발표를 대조했습니다.',
+      'cta.browse':'국가 보기'
+    },
+    es: {
+      'nav.countries':'Países','nav.guides':'Guías de festivos','nav.countdowns':'Cuentas atrás',
+      'nav.compare':'Comparar','nav.api':'API',
+      'hero.eyebrow':'Días festivos · fines de semana largos',
+      'hero.title':'Planifica tu año según los fines de semana largos.',
+      'hero.lede':'Todos los días festivos, los descansos más largos y suscripción al calendario en un clic.',
+      'hero.cta.browse':'Ver países',
+      'stats.countries':'Países','stats.holidays':'Festivos','stats.years':'Años',
+      'sec.browse':'Países','sec.browse.sub':'Cada festivo, fin de semana largo y puente, país por país.',
+      'sec.how':'Cómo funciona HolidayKit',
+      'how.1.t':'1 · Elige un país','how.1.p':'Todos los festivos oficiales, incluidos los regionales.',
+      'how.2.t':'2 · Encuentra el fin de semana largo','how.2.p':'Los puentes muestran cuántos días de permiso dan 4–6 días libres.',
+      'how.3.t':'3 · Añádelo a tu calendario','how.3.p':'Un enlace .ics para Google Calendar, Apple Calendar y Outlook.',
+      'cal.open':'Abrir calendario completo','cal.week':'L,M,X,J,V,S,D',
+      'foot.explore':'Explorar','foot.developers':'Desarrolladores','foot.data':'Datos',
+      'foot.all':'Todos los países','foot.school':'Vacaciones escolares','foot.embed':'Widget',
+      'foot.premium':'Premium','foot.about':'Acerca de y fuentes','foot.privacy':'Privacidad',
+      'foot.note':'Datos de fuentes abiertas, verificados con anuncios oficiales.',
+      'cta.browse':'Ver países'
+    },
+    fr: {
+      'nav.countries':'Pays','nav.guides':'Guides des fêtes','nav.countdowns':'Comptes à rebours',
+      'nav.compare':'Comparer','nav.api':'API',
+      'hero.eyebrow':'Jours fériés · longs week-ends',
+      'hero.title':'Planifiez votre année autour des longs week-ends.',
+      'hero.lede':'Tous les jours fériés, les plus longues pauses et un abonnement calendrier en un clic.',
+      'hero.cta.browse':'Voir les pays',
+      'stats.countries':'Pays','stats.holidays':'Jours fériés','stats.years':'Années',
+      'sec.browse':'Pays','sec.browse.sub':'Chaque férié, long week-end et pont, pays par pays.',
+      'sec.how':'Comment fonctionne HolidayKit',
+      'how.1.t':'1 · Choisissez un pays','how.1.p':'Tous les jours fériés, y compris régionaux.',
+      'how.2.t':'2 · Trouvez le long week-end','how.2.p':'Les ponts montrent combien de congés donnent 4 à 6 jours.',
+      'how.3.t':'3 · Ajoutez-le à votre calendrier','how.3.p':'Un lien .ics pour Google, Apple et Outlook.',
+      'cal.open':'Ouvrir le calendrier','cal.week':'L,M,M,J,V,S,D',
+      'foot.explore':'Explorer','foot.developers':'Développeurs','foot.data':'Données',
+      'foot.all':'Tous les pays','foot.school':'Vacances scolaires','foot.embed':'Widget',
+      'foot.premium':'Premium','foot.about':'À propos et sources','foot.privacy':'Confidentialité',
+      'foot.note':'Données ouvertes, recoupées avec les annonces officielles.',
+      'cta.browse':'Voir les pays'
+    },
+    de: {
+      'nav.countries':'Länder','nav.guides':'Feiertags-Guides','nav.countdowns':'Countdowns',
+      'nav.compare':'Vergleichen','nav.api':'API',
+      'hero.eyebrow':'Feiertage · lange Wochenenden',
+      'hero.title':'Plane dein Jahr um lange Wochenenden.',
+      'hero.lede':'Alle Feiertage, die längsten Pausen und Kalender-Abo mit einem Klick.',
+      'hero.cta.browse':'Länder ansehen',
+      'stats.countries':'Länder','stats.holidays':'Feiertage','stats.years':'Jahre',
+      'sec.browse':'Länder','sec.browse.sub':'Jeder Feiertag, jedes lange Wochenende, Land für Land.',
+      'sec.how':'So funktioniert HolidayKit',
+      'how.1.t':'1 · Land wählen','how.1.p':'Alle offiziellen Feiertage, auch regionale.',
+      'how.2.t':'2 · Langes Wochenende finden','how.2.p':'Brückentage zeigen, wie viel Urlaub 4–6 Tage frei bringt.',
+      'how.3.t':'3 · Zum Kalender hinzufügen','how.3.p':'Ein .ics-Link für Google, Apple und Outlook.',
+      'cal.open':'Ganzen Kalender öffnen','cal.week':'Mo,Di,Mi,Do,Fr,Sa,So',
+      'foot.explore':'Entdecken','foot.developers':'Entwickler','foot.data':'Daten',
+      'foot.all':'Alle Länder','foot.school':'Schulferien','foot.embed':'Widget',
+      'foot.premium':'Premium','foot.about':'Über uns & Quellen','foot.privacy':'Datenschutz',
+      'foot.note':'Offene Daten, abgeglichen mit offiziellen Bekanntmachungen.',
+      'cta.browse':'Länder ansehen'
+    }
+  };
+  var LOCALES = { en:'en-US', zh:'zh-CN', ja:'ja-JP', ko:'ko-KR', es:'es-ES', fr:'fr-FR', de:'de-DE' };
+  var lang = 'en';
+  try { var saved = localStorage.getItem('hk_lang'); if (saved && D[saved]) lang = saved; } catch (e) {}
+  function detect(){
+    var n = (navigator.language || 'en').toLowerCase();
+    var base = n.split('-')[0];
+    return D[base] ? base : 'en';
+  }
+  if (!lang || lang === 'en') { try { var s2 = localStorage.getItem('hk_lang'); if (!s2) lang = detect(); } catch (e) { lang = detect(); } }
+  function t(key){ var d = D[lang] || D.en; return d[key] || D.en[key] || key; }
+  function apply(){
+    document.documentElement.lang = LOCALES[lang] || 'en-US';
+    var nodes = document.querySelectorAll('[data-i18n]');
+    for (var i = 0; i < nodes.length; i++) {
+      nodes[i].textContent = t(nodes[i].getAttribute('data-i18n'));
+    }
+    var sels = document.querySelectorAll('[data-hk-lang]');
+    for (var j = 0; j < sels.length; j++) sels[j].value = lang;
+    document.dispatchEvent(new CustomEvent('hk-lang-changed', { detail: { lang: lang } }));
+  }
+  function set(l){ if (!D[l]) return; lang = l; try { localStorage.setItem('hk_lang', l); } catch (e) {} apply(); }
+  function locale(){ return LOCALES[lang] || 'en-US'; }
+  window.HKI18N = { t: t, apply: apply, set: set, lang: function(){ return lang; }, locale: locale };
+  document.addEventListener('DOMContentLoaded', function(){
+    apply();
+    var sels = document.querySelectorAll('[data-hk-lang]');
+    for (var k = 0; k < sels.length; k++) {
+      sels[k].addEventListener('change', function(){ set(this.value); });
+    }
+  });
 })();
 """
 
@@ -638,12 +843,18 @@ def nav_html(base: str) -> str:
         '<header class="site-head"><div class="wrap head-inner">'
         f'<a class="brand" href="{base}index.html"><span class="brand-mark">◷</span>{SITE_NAME}</a>'
         "<nav>"
-        f'<a href="{base}index.html#countries">Countries</a>'
-        f'<a href="{base}holidays/index.html">Holiday guides</a>'
-        f'<a href="{base}days-until/index.html">Countdowns</a>'
-        f'<a href="{base}compare/index.html">Compare</a>'
-        f'<a href="{base}api/index.html">API</a>'
-        "</nav></div></header>"
+        f'<a href="{base}index.html#countries" data-i18n="nav.countries">Countries</a>'
+        f'<a href="{base}holidays/index.html" data-i18n="nav.guides">Holiday guides</a>'
+        f'<a href="{base}days-until/index.html" data-i18n="nav.countdowns">Countdowns</a>'
+        f'<a href="{base}compare/index.html" data-i18n="nav.compare">Compare</a>'
+        f'<a href="{base}api/index.html" data-i18n="nav.api">API</a>'
+        "</nav>"
+        '<select class="lang-select" data-hk-lang aria-label="Language">'
+        '<option value="en">EN</option><option value="zh">中文</option>'
+        '<option value="ja">日本語</option><option value="ko">한국어</option>'
+        '<option value="es">ES</option><option value="fr">FR</option><option value="de">DE</option>'
+        "</select>"
+        "</div></header>"
     )
 
 
@@ -656,24 +867,23 @@ def footer_html(base: str, verified: str) -> str:
         f'<p class="muted">Public holidays, long weekends and bridge days for every country. '
         "Free calendar subscriptions and an open JSON API.</p>"
         "</div>"
-        '<div><strong>Explore</strong>'
-        f'<a href="{base}index.html#countries">All countries</a>'
-        f'<a href="{base}holidays/index.html">Holiday guides</a>'
-        f'<a href="{base}days-until/index.html">Countdowns</a>'
-        f'<a href="{base}compare/index.html">Compare countries</a>'
-        f'<a href="{base}school-holidays/index.html">School holidays</a></div>'
-        '<div><strong>Developers</strong>'
-        f'<a href="{base}api/index.html">Free API</a>'
-        f'<a href="{base}embed/index.html">Embed widget</a>'
-        f'<a href="{base}premium/index.html">Premium</a></div>'
-        '<div><strong>Data</strong>'
-        f'<a href="{base}about/index.html">About &amp; sources</a>'
-        f'<a href="{base}privacy/index.html">Privacy</a>'
+        '<div><strong data-i18n="foot.explore">Explore</strong>'
+        f'<a href="{base}index.html#countries" data-i18n="foot.all">All countries</a>'
+        f'<a href="{base}holidays/index.html" data-i18n="nav.guides">Holiday guides</a>'
+        f'<a href="{base}days-until/index.html" data-i18n="nav.countdowns">Countdowns</a>'
+        f'<a href="{base}compare/index.html" data-i18n="nav.compare">Compare countries</a>'
+        f'<a href="{base}school-holidays/index.html" data-i18n="foot.school">School holidays</a></div>'
+        f'<div><strong data-i18n="foot.developers">Developers</strong>'
+        f'<a href="{base}api/index.html" data-i18n="nav.api">Free API</a>'
+        f'<a href="{base}embed/index.html" data-i18n="foot.embed">Embed widget</a>'
+        f'<a href="{base}premium/index.html" data-i18n="foot.premium">Premium</a></div>'
+        f'<div><strong data-i18n="foot.data">Data</strong>'
+        f'<a href="{base}about/index.html" data-i18n="foot.about">About &amp; sources</a>'
+        f'<a href="{base}privacy/index.html" data-i18n="foot.privacy">Privacy</a>'
         '<a href="https://date.nager.at" rel="nofollow noopener" target="_blank">Nager.Date</a></div>'
         "</div>"
-        f'<div class="foot-note">Data from open sources, cross-checked against official government '
-        f"announcements. Last verified {esc(verified)}. Dates are for planning — always confirm before "
-        "booking non-refundable travel.</div>"
+        f'<div class="foot-note" data-i18n="foot.note">Data from open sources, cross-checked against official government '
+        "announcements. Dates are for planning — always confirm before booking non-refundable travel.</div>"
         "</div></footer>"
     )
 
@@ -719,10 +929,11 @@ def render_page(*, title: str, description: str, canonical: str, base: str,
     body = body.replace('<section class="ad">[Ad slot — AdSense / Ezoic]</section>', ad_unit())
     mobile_href = cta_href or (base + "index.html#countries")
     mobile_label = cta_label if cta_href else "Browse countries"
+    mobile_attr = "" if cta_href else ' data-i18n="cta.browse"'
     mobile_cta = (
         '<div class="mobile-cta">'
-        f'<a class="btn" href="{mobile_href}">{esc(mobile_label)}</a>'
-        f'<a class="btn ghost" href="{base}holidays/index.html">Holiday guides</a>'
+        f'<a class="btn" href="{mobile_href}"{mobile_attr}>{esc(mobile_label)}</a>'
+        f'<a class="btn ghost" href="{base}holidays/index.html" data-i18n="nav.guides">Holiday guides</a>'
         "</div>"
     )
     return (
@@ -732,6 +943,7 @@ def render_page(*, title: str, description: str, canonical: str, base: str,
         + footer_html(base, verified)
         + mobile_cta
         + f"<script>{JS}</script>"
+        + f"<script>{I18N_JS}</script>"
         + (f"<script>{extra_js}</script>" if extra_js else "")
         + "</body></html>"
     )
@@ -1079,37 +1291,40 @@ def page_index(countries: list[tuple[str, str, str]], by_country, site_url: str,
         "</div>"
         '<div class="cal-single" data-cal-body>' + fallback_cal + "</div>"
         '<div class="cal-foot"><span class="cal-country" data-cal-country>' + esc(default_name) + "</span>"
-        f'<span>·</span><a data-cal-link href="{default_slug}/index.html">Open full calendar</a></div>'
+        f'<span>·</span><a data-cal-link href="{default_slug}/index.html" data-i18n="cal.open">Open full calendar</a></div>'
         "</aside>"
     )
     body = (
         '<section class="hero"><div class="hero-inner"><div>'
         f'<p class="eyebrow">Public holidays · long weekends · {len(countries)} countries</p>'
-        "<h1>Plan your year around long weekends.</h1>"
-        '<p class="lede">Every public holiday, the longest breaks you can build around them, and '
-        "one-click calendar subscriptions — for every country and year that matter.</p>"
+        '<h1 data-i18n="hero.title">Plan your year around long weekends.</h1>'
+        '<p class="lede" data-i18n="hero.lede">Every public holiday, the longest breaks you can build '
+        "around them, and one-click calendar subscriptions — for every country and year that matter.</p>"
         '<div class="cta-row">'
-        '<a class="btn" href="#countries">Browse countries</a>'
+        '<a class="btn" href="#countries" data-i18n="hero.cta.browse">Browse countries</a>'
         f'<a class="btn ghost" href="{default_slug}/{default_year}/index.html">'
         f"{esc(default_name)} holidays</a>"
         "</div>"
         '<div class="stats">'
-        f'<div class="stat"><div class="num">{len(countries)}</div><div class="lbl">Countries</div></div>'
-        f'<div class="stat"><div class="num">{total_holidays:,}</div><div class="lbl">Holidays</div></div>'
-        f'<div class="stat"><div class="num">{esc(year_label)}</div><div class="lbl">Years covered</div></div>'
+        f'<div class="stat"><div class="num">{len(countries)}</div>'
+        '<div class="lbl" data-i18n="stats.countries">Countries</div></div>'
+        f'<div class="stat"><div class="num">{total_holidays:,}</div>'
+        '<div class="lbl" data-i18n="stats.holidays">Holidays</div></div>'
+        f'<div class="stat"><div class="num">{esc(year_label)}</div>'
+        '<div class="lbl" data-i18n="stats.years">Years covered</div></div>'
         "</div></div>" + feature_card + "</div></section>"
-        '<section class="sec" id="countries"><h2>Browse countries</h2>'
-        '<p class="sub">Every holiday, long weekend and bridge day, country by country.</p>'
+        '<section class="sec" id="countries"><h2 data-i18n="sec.browse">Browse countries</h2>'
+        '<p class="sub" data-i18n="sec.browse.sub">Every holiday, long weekend and bridge day, country by country.</p>'
         '<div class="grid">' + "".join(cards) + "</div></section>"
         '<section class="ad">[Ad slot]</section>'
-        '<section class="sec"><h2>How HolidayKit works</h2>'
+        '<section class="sec"><h2 data-i18n="sec.how">How HolidayKit works</h2>'
         '<div class="activity">'
-        '<div class="card"><h3>1 · Pick a country</h3>'
-        "<p>See every official public holiday, including regional ones.</p></div>"
-        '<div class="card"><h3>2 · Find the long weekend</h3>'
-        "<p>Bridge days show how much leave turns a holiday into 4–6 days off.</p></div>"
-        '<div class="card"><h3>3 · Add it to your calendar</h3>'
-        "<p>One .ics link for Google Calendar, Apple Calendar and Outlook.</p></div>"
+        '<div class="card"><h3 data-i18n="how.1.t">1 · Pick a country</h3>'
+        '<p data-i18n="how.1.p">See every official public holiday, including regional ones.</p></div>'
+        '<div class="card"><h3 data-i18n="how.2.t">2 · Find the long weekend</h3>'
+        '<p data-i18n="how.2.p">Bridge days show how much leave turns a holiday into 4–6 days off.</p></div>'
+        '<div class="card"><h3 data-i18n="how.3.t">3 · Add it to your calendar</h3>'
+        '<p data-i18n="how.3.p">One .ics link for Google Calendar, Apple Calendar and Outlook.</p></div>'
         "</div></section>"
         '<section class="ad">[Ad slot]</section>'
     )
