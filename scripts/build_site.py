@@ -412,6 +412,26 @@ tbody tr:hover{background:#fcfbf8}
   .stat .num{font-size:1.5rem}
   .cta-row .btn{flex:1 1 auto}
 }
+/* premium motion layer */
+html{scroll-behavior:smooth}
+.reveal{opacity:0;transform:translateY(14px);transition:opacity .62s cubic-bezier(.16,1,.3,1),transform .62s cubic-bezier(.16,1,.3,1)}
+.reveal.in{opacity:1;transform:none}
+.site-head{transition:box-shadow .3s cubic-bezier(.16,1,.3,1),background .3s}
+.site-head.scrolled{box-shadow:0 10px 34px rgba(21,22,26,.08)}
+.btn{transition:transform .18s cubic-bezier(.16,1,.3,1),box-shadow .25s,opacity .2s}
+.btn:hover{transform:translateY(-1px);box-shadow:0 12px 28px rgba(21,22,26,.18)}
+.card,.hero-cal{transition:transform .28s cubic-bezier(.16,1,.3,1),box-shadow .28s,border-color .28s}
+.card:hover{transform:translateY(-3px);box-shadow:0 20px 48px rgba(21,22,26,.10)}
+.hero{position:relative;overflow:hidden}
+.hero::before{content:"";position:absolute;inset:-50% -10% auto -10%;height:130%;background:radial-gradient(600px 300px at 18% 6%,rgba(15,107,92,.09),transparent 62%),radial-gradient(520px 260px at 88% 0%,rgba(194,118,26,.09),transparent 60%);pointer-events:none}
+.hero>*{position:relative}
+.cal-cell{transition:background .15s,transform .15s,box-shadow .15s,color .15s}
+.cal-cell[data-date]:hover{transform:translateY(-1px);box-shadow:inset 0 0 0 1.5px var(--accent)}
+tbody tr{transition:background .15s}
+tbody tr:hover{background:#faf7f0}
+nav a{position:relative}
+::selection{background:rgba(15,107,92,.18)}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}html{scroll-behavior:auto}}
 """
 
 JS = """
@@ -834,6 +854,44 @@ CAL_JS = r"""
   document.addEventListener('keydown', function(e){ if (e.key === 'Escape') hide(); });
   window.addEventListener('scroll', hide, true);
 })();
+""" 
+
+
+# Premium motion layer: reveal-on-scroll, header elevation, stat count-up
+MOTION_JS = r"""
+(function(){
+  var head = document.querySelector('.site-head');
+  function onScroll(){ if (head) head.classList.toggle('scrolled', window.scrollY > 8); }
+  window.addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (reduce || !('IntersectionObserver' in window)) return;
+  var io = new IntersectionObserver(function(entries){
+    entries.forEach(function(en){ if (en.isIntersecting) { en.target.classList.add('in'); io.unobserve(en.target); } });
+  }, { rootMargin: '0px 0px -40px 0px', threshold: 0.08 });
+  var targets = document.querySelectorAll('.sec, .card, .hero-cal, .cal-month, .tbl-wrap, .activity, .grid > *');
+  for (var i = 0; i < targets.length; i++) { targets[i].classList.add('reveal'); io.observe(targets[i]); }
+  var nums = document.querySelectorAll('.stat .num');
+  if (nums.length) {
+    var io2 = new IntersectionObserver(function(entries){
+      entries.forEach(function(en){
+        if (!en.isIntersecting) return;
+        var el = en.target; io2.unobserve(el);
+        var txt = el.textContent.trim().replace(/,/g, '');
+        var n = parseInt(txt, 10);
+        if (isNaN(n) || n > 1000000) return;
+        var t0 = performance.now();
+        function step(t){
+          var p = Math.min(1, (t - t0) / 900);
+          el.textContent = Math.round(n * (1 - Math.pow(1 - p, 3))).toLocaleString();
+          if (p < 1) requestAnimationFrame(step);
+        }
+        requestAnimationFrame(step);
+      });
+    }, { threshold: 0.4 });
+    for (var j = 0; j < nums.length; j++) io2.observe(nums[j]);
+  }
+})();
 """
 
 
@@ -1150,6 +1208,7 @@ def render_page(*, title: str, description: str, canonical: str, base: str,
         + (f'<script>window.HK_FORCE_LANG="{esc(lang_code)}";</script>' if lang_code != "en" else "")
         + f"<script>{I18N_JS}</script>"
         + f"<script>{CAL_JS}</script>"
+        + f"<script>{MOTION_JS}</script>"
         + (f"<script>{extra_js}</script>" if extra_js else "")
         + "</body></html>"
     )
