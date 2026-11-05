@@ -675,6 +675,7 @@ def render_page(*, title: str, description: str, canonical: str, base: str,
         '<meta property="og:type" content="website">'
         '<meta name="theme-color" content="#fbfaf7">'
         '<link rel="icon" href="/favicon.svg" type="image/svg+xml">'
+        f'<link rel="sitemap" type="application/xml" href="{base}sitemap.xml">'
         f"<style>{CSS}{CSS2}</style>"
     )
     if ADSENSE_CLIENT:
