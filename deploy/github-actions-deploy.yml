@@ -19,7 +19,7 @@ jobs:
           python-version: "3.12"
 
       - name: Install python-holidays
-        run: python -m pip install --quiet holidays
+        run: python -m pip install --quiet holidays chinesecalendar
 
       - name: Collect (Nager.Date)
         run: python scripts/fetch_cache.py
@@ -32,6 +32,9 @@ jobs:
 
       - name: Collect (python-holidays fallback)
         run: python scripts/fetch_lib.py
+
+      - name: Collect (China 调休/补班)
+        run: python scripts/fetch_cn.py
 
       - name: Assemble data
         run: python scripts/assemble.py

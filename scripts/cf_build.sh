@@ -4,12 +4,13 @@
 # and the output directory as:           dist
 set -euo pipefail
 
-python3 -m pip install --quiet holidays
+python3 -m pip install --quiet holidays chinesecalendar
 
 python3 scripts/fetch_cache.py
 python3 scripts/fetch_openholidays.py
 python3 scripts/fetch_school.py
 python3 scripts/fetch_lib.py
+python3 scripts/fetch_cn.py
 python3 scripts/assemble.py
 python3 scripts/audit.py
 python3 scripts/build_site.py \

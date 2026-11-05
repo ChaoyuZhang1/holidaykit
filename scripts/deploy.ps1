@@ -22,6 +22,8 @@ if (-not $SkipCollect) {
   python scripts/fetch_school.py
   Write-Host "==> 4/6 collect (python-holidays fallback)" -ForegroundColor Cyan
   python scripts/fetch_lib.py
+  Write-Host "==> 4.5 China 调休/补班" -ForegroundColor Cyan
+  python scripts/fetch_cn.py
   Write-Host "==> 5/6 assemble + audit" -ForegroundColor Cyan
   python scripts/assemble.py
   python scripts/audit.py
