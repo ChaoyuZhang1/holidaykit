@@ -77,6 +77,132 @@ COUNTRY_NAMES = {
     "UZ": "Uzbekistan", "VA": "Vatican City", "ME": "Montenegro", "BA": "Bosnia and Herzegovina",
 }
 
+# Localized homepage copy (server-rendered language homepages /zh/ /ja/ ...)
+HOME_I18N = {
+    "zh": {
+        "title": "HolidayKit — 各国公共假期与长周末",
+        "desc": "浏览各国公共假期、长周末与桥假，一键订阅日历。",
+        "eyebrow": "公共假期 · 长周末",
+        "h1": "围绕长周末规划你的一年。",
+        "lede": "每个国家的公共假期、能拼出的最长假期，以及一键订阅日历。",
+        "cta_browse": "浏览国家",
+        "cta_country": "查看 {name} 假期",
+        "stats": ["国家", "假期", "覆盖年份"],
+        "browse": "浏览国家",
+        "browse_sub": "按国家查看每个公共假期、长周末与桥假。",
+        "how": "HolidayKit 怎么用",
+        "how_cards": [
+            ("1 · 选择国家", "查看全部法定假期，包括地区性假期。"),
+            ("2 · 找到长周末", "桥假告诉你请几天假能连休 4–6 天。"),
+            ("3 · 加入日历", "一个 .ics 链接支持 Google、Apple、Outlook。"),
+        ],
+        "cal_open": "打开完整日历",
+        "foot_note": "数据来自公开来源，并对照官方公告核对。",
+    },
+    "ja": {
+        "title": "HolidayKit — 各国の祝日とロングウィークエンド",
+        "desc": "各国の祝日・長い週末・橋渡し休暇を確認し、カレンダーを購読できます。",
+        "eyebrow": "祝日 · 長い週末",
+        "h1": "長い週末を中心に一年を計画しよう。",
+        "lede": "各国の祝日、作れる最長の連休、ワンクリックのカレンダー購読。",
+        "cta_browse": "国を見る",
+        "cta_country": "{name} の祝日を見る",
+        "stats": ["国", "祝日", "対象年"],
+        "browse": "国一覧",
+        "browse_sub": "国ごとに祝日・長い週末・橋渡し休暇を確認。",
+        "how": "HolidayKit の使い方",
+        "how_cards": [
+            ("1 · 国を選ぶ", "地域ごとの祝日も含めて確認できます。"),
+            ("2 · 長い週末を探す", "有給を何日使うと 4〜6 連休になるかが分かります。"),
+            ("3 · カレンダーに追加", "1 つの .ics リンクで Google / Apple / Outlook に対応。"),
+        ],
+        "cal_open": "カレンダーを開く",
+        "foot_note": "データは公開情報を基に公式発表と照合しています。",
+    },
+    "ko": {
+        "title": "HolidayKit — 국가별 공휴일과 긴 주말",
+        "desc": "국가별 공휴일과 긴 주말, 징검다리 휴일을 확인하고 캘린더를 구독하세요.",
+        "eyebrow": "공휴일 · 긴 주말",
+        "h1": "긴 주말 중심으로 한 해를 계획하세요.",
+        "lede": "모든 공휴일, 만들 수 있는 가장 긴 연휴, 원클릭 캘린더 구독.",
+        "cta_browse": "국가 보기",
+        "cta_country": "{name} 공휴일 보기",
+        "stats": ["국가", "공휴일", "대상 연도"],
+        "browse": "국가 목록",
+        "browse_sub": "국가별 공휴일·긴 주말·징검다리 휴일을 확인하세요.",
+        "how": "HolidayKit 사용법",
+        "how_cards": [
+            ("1 · 국가 선택", "지역별 공휴일까지 모두 확인할 수 있습니다."),
+            ("2 · 긴 주말 찾기", "연차 며칠로 4~6일 연휴를 만들 수 있는지 보여줍니다."),
+            ("3 · 캘린더에 추가", "하나의 .ics 링크로 Google·Apple·Outlook 지원."),
+        ],
+        "cal_open": "전체 캘린더 열기",
+        "foot_note": "공개 데이터와 공식 발표를 대조했습니다.",
+    },
+    "es": {
+        "title": "HolidayKit — Días festivos y fines de semana largos",
+        "desc": "Consulta días festivos, fines de semana largos y suscríbete al calendario.",
+        "eyebrow": "Días festivos · fines de semana largos",
+        "h1": "Planifica tu año según los fines de semana largos.",
+        "lede": "Todos los días festivos, los descansos más largos y suscripción al calendario en un clic.",
+        "cta_browse": "Ver países",
+        "cta_country": "Ver festivos de {name}",
+        "stats": ["Países", "Festivos", "Años"],
+        "browse": "Países",
+        "browse_sub": "Cada festivo, fin de semana largo y puente, país por país.",
+        "how": "Cómo funciona HolidayKit",
+        "how_cards": [
+            ("1 · Elige un país", "Todos los festivos oficiales, incluidos los regionales."),
+            ("2 · Encuentra el fin de semana largo", "Los puentes muestran cuántos días de permiso dan 4–6 días libres."),
+            ("3 · Añádelo a tu calendario", "Un enlace .ics para Google Calendar, Apple Calendar y Outlook."),
+        ],
+        "cal_open": "Abrir calendario completo",
+        "foot_note": "Datos de fuentes abiertas, verificados con anuncios oficiales.",
+    },
+    "fr": {
+        "title": "HolidayKit — Jours fériés et longs week-ends",
+        "desc": "Consultez les jours fériés, les longs week-ends et abonnez-vous au calendrier.",
+        "eyebrow": "Jours fériés · longs week-ends",
+        "h1": "Planifiez votre année autour des longs week-ends.",
+        "lede": "Tous les jours fériés, les plus longues pauses et un abonnement calendrier en un clic.",
+        "cta_browse": "Voir les pays",
+        "cta_country": "Voir les fériés de {name}",
+        "stats": ["Pays", "Jours fériés", "Années"],
+        "browse": "Pays",
+        "browse_sub": "Chaque férié, long week-end et pont, pays par pays.",
+        "how": "Comment fonctionne HolidayKit",
+        "how_cards": [
+            ("1 · Choisissez un pays", "Tous les jours fériés, y compris régionaux."),
+            ("2 · Trouvez le long week-end", "Les ponts montrent combien de congés donnent 4 à 6 jours."),
+            ("3 · Ajoutez-le à votre calendrier", "Un lien .ics pour Google, Apple et Outlook."),
+        ],
+        "cal_open": "Ouvrir le calendrier",
+        "foot_note": "Données ouvertes, recoupées avec les annonces officielles.",
+    },
+    "de": {
+        "title": "HolidayKit — Feiertage und lange Wochenenden",
+        "desc": "Feiertage, lange Wochenenden und Brückentage ansehen, Kalender abonnieren.",
+        "eyebrow": "Feiertage · lange Wochenenden",
+        "h1": "Plane dein Jahr um lange Wochenenden.",
+        "lede": "Alle Feiertage, die längsten Pausen und Kalender-Abo mit einem Klick.",
+        "cta_browse": "Länder ansehen",
+        "cta_country": "{name} Feiertage ansehen",
+        "stats": ["Länder", "Feiertage", "Jahre"],
+        "browse": "Länder",
+        "browse_sub": "Jeder Feiertag, jedes lange Wochenende, Land für Land.",
+        "how": "So funktioniert HolidayKit",
+        "how_cards": [
+            ("1 · Land wählen", "Alle offiziellen Feiertage, auch regionale."),
+            ("2 · Langes Wochenende finden", "Brückentage zeigen, wie viel Urlaub 4–6 Tage frei bringt."),
+            ("3 · Zum Kalender hinzufügen", "Ein .ics-Link für Google, Apple und Outlook."),
+        ],
+        "cal_open": "Ganzen Kalender öffnen",
+        "foot_note": "Offene Daten, abgeglichen mit offiziellen Bekanntmachungen.",
+    },
+}
+LANG_LABELS = {"en": "EN", "zh": "中文", "ja": "日本語", "ko": "한국어", "es": "ES", "fr": "FR", "de": "DE"}
+
+
 
 CSS = """
 :root{--ink:#111827;--muted:#6b7280;--line:#e5e7eb;--soft:#f9fafb;--brand:#0f766e;--accent:#f59e0b}
@@ -253,6 +379,13 @@ tbody tr:hover{background:#fcfbf8}
 .cal-date{flex:0 0 auto;color:var(--muted);font-variant-numeric:tabular-nums;min-width:50px}
 .cal-month .cal-list{font-size:.7rem;margin-top:8px;gap:3px}
 .cal-month .cal-date{min-width:42px}
+.cal-cell[data-date]{cursor:pointer}
+.cal-detail{position:fixed;z-index:60;max-width:280px;background:var(--surface);border:1px solid var(--line);border-radius:14px;box-shadow:0 18px 50px rgba(21,22,26,.18);padding:14px 16px;font-size:.86rem;display:none}
+.cal-detail.open{display:block}
+.cal-detail .d-date{font-weight:700;margin-bottom:6px;color:var(--ink)}
+.cal-detail .d-hol{color:var(--accent);margin:4px 0}
+.cal-detail .d-note{color:var(--amber);font-size:.8rem;margin-top:6px}
+.cal-detail .d-count{color:var(--muted);font-size:.8rem;margin-top:6px}
 .lang-select{border:1px solid var(--line);background:var(--surface);color:var(--ink-soft);border-radius:9px;padding:4px 6px;font-size:.8rem;margin-left:12px}
 @media(max-width:900px){
   .head-inner{height:auto;min-height:56px;flex-wrap:wrap;row-gap:6px;padding:8px 0}
@@ -396,7 +529,10 @@ HOME_CAL_JS = r"""
       if (cn.work[k]) cls += ' cal-makeup';
       var tt = hol[k] || '';
       if (cn.work[k]) tt = (tt ? tt + ' / ' : '') + '补班';
-      html += '<div class="' + cls + '" title="' + tt + '">' + i + '</div>';
+      var note = cn.work[k] ? '补班' : (cn.rest[k] ? '调休' : '');
+      html += '<div class="' + cls + '" data-date="' + k + '" data-hol="' +
+        (hol[k] || '').replace(/"/g, '&quot;') + '" data-note="' + note +
+        '" title="' + tt + '">' + i + '</div>';
     }
     html += '</div>';
     var listItems = [];
@@ -412,7 +548,7 @@ HOME_CAL_JS = r"""
     if (titleEl) titleEl.textContent = monthLabel();
   }
   function loadYear(cb){
-    fetch('api/v1/holidays/' + state.cc + '/' + state.year + '.json')
+    fetch('/api/v1/holidays/' + state.cc + '/' + state.year + '.json')
       .then(function(r){ return r.ok ? r.json() : null; })
       .then(function(d){ state.data = d; if (cb) cb(); })
       .catch(function(){ state.data = null; if (cb) cb(); });
@@ -423,7 +559,7 @@ HOME_CAL_JS = r"""
     if (!info) return;
     state.cc = info.code; state.name = info.name; state.slug = info.slug;
     if (countryEl) countryEl.textContent = info.name;
-    if (linkEl) linkEl.href = info.slug + '/index.html';
+    if (linkEl) linkEl.href = '/' + info.slug + '/index.html';
     loadYear(render);
   }
   function guess(){
@@ -440,7 +576,7 @@ HOME_CAL_JS = r"""
   }
   function init(){
     Promise.all([
-      fetch('api/v1/countries.json').then(function(r){ return r.ok ? r.json() : null; }).then(function(d){
+      fetch('/api/v1/countries.json').then(function(r){ return r.ok ? r.json() : null; }).then(function(d){
         var map = {};
         ((d && d.countries) || []).forEach(function(c){ map[c.code] = c; });
         return map;
@@ -617,7 +753,9 @@ I18N_JS = r"""
     var base = n.split('-')[0];
     return D[base] ? base : 'en';
   }
-  if (!lang || lang === 'en') { try { var s2 = localStorage.getItem('hk_lang'); if (!s2) lang = detect(); } catch (e) { lang = detect(); } }
+  var forced = window.HK_FORCE_LANG;
+  if (forced && D[forced]) { lang = forced; }
+  else if (!lang || lang === 'en') { try { var s2 = localStorage.getItem('hk_lang'); if (!s2) lang = detect(); } catch (e) { lang = detect(); } }
   function t(key){ var d = D[lang] || D.en; return d[key] || D.en[key] || key; }
   function apply(){
     document.documentElement.lang = LOCALES[lang] || 'en-US';
@@ -639,6 +777,62 @@ I18N_JS = r"""
       sels[k].addEventListener('change', function(){ set(this.value); });
     }
   });
+})();
+"""
+
+# Calendar day detail popover (works with server-rendered and JS-rendered cells)
+CAL_JS = r"""
+(function(){
+  var pop = null;
+  function ensure(){
+    if (pop) return pop;
+    pop = document.createElement('div');
+    pop.className = 'cal-detail';
+    document.body.appendChild(pop);
+    return pop;
+  }
+  function hide(){ if (pop) pop.classList.remove('open'); }
+  function fmtDate(iso){
+    try {
+      var d = new Date(iso + 'T00:00:00');
+      var loc = (window.HKI18N ? window.HKI18N.locale() : undefined);
+      return d.toLocaleDateString(loc, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+    } catch (e) { return iso; }
+  }
+  function show(cell){
+    var el = ensure();
+    var iso = cell.getAttribute('data-date');
+    var hol = cell.getAttribute('data-hol') || '';
+    var note = cell.getAttribute('data-note') || '';
+    var days = null;
+    try {
+      var t = new Date(); t.setHours(0, 0, 0, 0);
+      var d = new Date(iso + 'T00:00:00');
+      days = Math.round((d - t) / 86400000);
+    } catch (e) {}
+    var html = '<div class="d-date">' + fmtDate(iso) + '</div>';
+    if (hol) html += '<div class="d-hol">' + hol + '</div>';
+    if (note) html += '<div class="d-note">' + note + '</div>';
+    if (days !== null) {
+      var label = days === 0 ? 'Today' : (days > 0 ? ('in ' + days + ' days') : (Math.abs(days) + ' days ago'));
+      html += '<div class="d-count">' + label + '</div>';
+    }
+    el.innerHTML = html;
+    el.classList.add('open');
+    var r = cell.getBoundingClientRect();
+    var top = r.bottom + 8;
+    var left = Math.min(r.left, window.innerWidth - 300);
+    if (top + 170 > window.innerHeight) top = Math.max(8, r.top - 170);
+    el.style.top = Math.max(8, top) + 'px';
+    el.style.left = Math.max(8, left) + 'px';
+  }
+  document.addEventListener('click', function(e){
+    var cell = e.target && e.target.closest ? e.target.closest('.cal-cell[data-date]') : null;
+    if (cell) { e.preventDefault(); show(cell); return; }
+    if (pop && !(e.target && e.target.closest && e.target.closest('.cal-detail'))) hide();
+  });
+  document.addEventListener('keydown', function(e){ if (e.key === 'Escape') hide(); });
+  window.addEventListener('scroll', hide, true);
 })();
 """
 
@@ -858,6 +1052,14 @@ def nav_html(base: str) -> str:
     )
 
 
+def hreflang_links(site_url: str) -> str:
+    parts = [f'<link rel="alternate" hreflang="en" href="{site_url}/">']
+    for code in HOME_I18N:
+        parts.append(f'<link rel="alternate" hreflang="{code}" href="{site_url}/{code}/">')
+    parts.append(f'<link rel="alternate" hreflang="x-default" href="{site_url}/">')
+    return "".join(parts)
+
+
 def footer_html(base: str, verified: str) -> str:
     return (
         '<footer class="site-foot"><div class="wrap">'
@@ -891,9 +1093,9 @@ def footer_html(base: str, verified: str) -> str:
 def render_page(*, title: str, description: str, canonical: str, base: str,
                 body: str, verified: str, json_ld: str = "",
                 cta_href: str = "", cta_label: str = "Browse countries",
-                extra_js: str = "") -> str:
+                extra_js: str = "", lang_code: str = "en", alternates: str = "") -> str:
     head = (
-        '<!doctype html><html lang="en"><head><meta charset="utf-8">'
+        f'<!doctype html><html lang="{esc(lang_code)}"><head><meta charset="utf-8">'
         '<meta name="viewport" content="width=device-width,initial-scale=1">'
         f"<title>{esc(title)}</title>"
         f'<meta name="description" content="{esc(description)}">'
@@ -906,7 +1108,8 @@ def render_page(*, title: str, description: str, canonical: str, base: str,
         '<meta name="theme-color" content="#fbfaf7">'
         '<link rel="icon" href="/favicon.svg" type="image/svg+xml">'
         f'<link rel="sitemap" type="application/xml" href="{base}sitemap.xml">'
-        f"<style>{CSS}{CSS2}</style>"
+        + alternates
+        + f"<style>{CSS}{CSS2}</style>"
     )
     if ADSENSE_CLIENT:
         head += (
@@ -943,7 +1146,9 @@ def render_page(*, title: str, description: str, canonical: str, base: str,
         + footer_html(base, verified)
         + mobile_cta
         + f"<script>{JS}</script>"
+        + (f'<script>window.HK_FORCE_LANG="{esc(lang_code)}";</script>' if lang_code != "en" else "")
         + f"<script>{I18N_JS}</script>"
+        + f"<script>{CAL_JS}</script>"
         + (f"<script>{extra_js}</script>" if extra_js else "")
         + "</body></html>"
     )
@@ -1080,8 +1285,15 @@ def month_calendar_html(year: int, rows: list[dict], cn: dict | None = None) -> 
                     titles.append(f"调休：{rest_days[d]}")
                 if d in work_days:
                     titles.append(f"补班：{work_days[d]}")
+                note = ""
+                if d in work_days:
+                    note = "补班"
+                elif d in rest_days:
+                    note = "调休"
                 cells.append(
-                    f'<div class="{cls}" title="{esc("; ".join(titles))}">{day}</div>'
+                    f'<div class="{cls}" data-date="{d.isoformat()}" '
+                    f'data-hol="{esc("; ".join(holidays.get(d, [])))}" data-note="{esc(note)}" '
+                    f'title="{esc("; ".join(titles))}">{day}</div>'
                 )
         head = "".join(f"<span>{w}</span>" for w in ["M", "T", "W", "T", "F", "S", "S"])
         month_hols = [
@@ -1159,7 +1371,12 @@ def single_month_html(year: int, month: int, rows: list[dict], cn: dict | None =
             if d in work_days:
                 cls += " cal-makeup"
             title = ", ".join(holidays.get(d, []))
-            cells.append(f'<div class="{cls}" title="{esc(title)}">{day}</div>')
+            note = "补班" if d in work_days else ("调休" if d in rest_days else "")
+            cells.append(
+                f'<div class="{cls}" data-date="{d.isoformat()}" '
+                f'data-hol="{esc(", ".join(holidays.get(d, [])))}" data-note="{esc(note)}" '
+                f'title="{esc(title)}">{day}</div>'
+            )
     head = "".join(f"<span>{w}</span>" for w in ["M", "T", "W", "T", "F", "S", "S"])
     month_hols = [
         (d, holidays[d]) for d in sorted(holidays)
@@ -1259,6 +1476,77 @@ def build_ics(cc: str, name: str, year: int, rows: list[dict], cn: dict | None =
     return "\r\n".join(lines) + "\r\n"
 
 
+def page_lang_home(lang: str, countries: list[tuple[str, str, str]], by_country,
+                   site_url: str, verified: str, today: date) -> str:
+    T = HOME_I18N[lang]
+    all_years = sorted({y for cc, _, _ in countries for y in by_country[cc]})
+    total_holidays = sum(sum(len(by_country[cc][y]) for y in by_country[cc]) for cc, _, _ in countries)
+    cards = []
+    for cc, name, slug in countries:
+        years = sorted(by_country[cc].keys(), reverse=True)
+        count = sum(len(by_country[cc][y]) for y in years)
+        cards.append(
+            f'<a class="card" href="/{slug}/index.html"><div class="flag">{flag_emoji(cc)}</div>'
+            f"<h3>{esc(name)}</h3><p>{count} · {', '.join(str(y) for y in years[:3])}</p></a>"
+        )
+    default_country = next((c for c in countries if c[0] == "US"), countries[0])
+    dcc, dname, dslug = default_country
+    default_year = today.year if today.year in by_country[dcc] else max(by_country[dcc])
+    default_rows = by_country[dcc].get(today.year) or by_country[dcc][default_year]
+    fallback_cal = single_month_html(today.year, today.month, default_rows)
+    cal_open = T["cal_open"]
+    cal_card = (
+        f'<aside class="hero-cal" id="hk-home-cal" data-default-country="{dcc}">'
+        '<div class="cal-toolbar">'
+        '<button type="button" class="cal-nav-btn" data-cal-prev aria-label="Previous month">‹</button>'
+        f'<span class="cal-month-label" data-cal-title>{calendar.month_name[today.month]} {today.year}</span>'
+        '<button type="button" class="cal-nav-btn" data-cal-next aria-label="Next month">›</button>'
+        "</div>"
+        '<div class="cal-single" data-cal-body>' + fallback_cal + "</div>"
+        '<div class="cal-foot"><span class="cal-country" data-cal-country>' + esc(dname) + "</span>"
+        f'<span>·</span><a data-cal-link href="/{dslug}/index.html">{esc(cal_open)}</a></div>'
+        "</aside>"
+    )
+    year_label = f"{all_years[0]}–{all_years[-1]}" if len(all_years) > 1 else str(all_years[0])
+    cta_country = T["cta_country"].replace("{name}", dname)
+    how_cards = "".join(
+        f'<div class="card"><h3>{esc(t)}</h3><p>{esc(p)}</p></div>' for t, p in T["how_cards"]
+    )
+    body = (
+        '<section class="hero"><div class="hero-inner"><div>'
+        f'<p class="eyebrow">{esc(T["eyebrow"])}</p>'
+        f'<h1>{esc(T["h1"])}</h1>'
+        f'<p class="lede">{esc(T["lede"])}</p>'
+        '<div class="cta-row">'
+        f'<a class="btn" href="#countries">{esc(T["cta_browse"])}</a>'
+        f'<a class="btn ghost" href="/{dslug}/{default_year}/index.html">{esc(cta_country)}</a>'
+        "</div>"
+        '<div class="stats">'
+        f'<div class="stat"><div class="num">{len(countries)}</div><div class="lbl">{esc(T["stats"][0])}</div></div>'
+        f'<div class="stat"><div class="num">{total_holidays:,}</div><div class="lbl">{esc(T["stats"][1])}</div></div>'
+        f'<div class="stat"><div class="num">{esc(year_label)}</div><div class="lbl">{esc(T["stats"][2])}</div></div>'
+        "</div></div>" + cal_card + "</div></section>"
+        '<section class="sec" id="countries"><h2>' + esc(T["browse"]) + "</h2>"
+        '<p class="sub">' + esc(T["browse_sub"]) + "</p>"
+        '<div class="grid">' + "".join(cards) + "</div></section>"
+        '<section class="ad">[Ad slot]</section>'
+        '<section class="sec"><h2>' + esc(T["how"]) + "</h2>"
+        '<div class="activity">' + how_cards + "</div></section>"
+        '<section class="ad">[Ad slot]</section>'
+    )
+    return render_page(
+        title=T["title"],
+        description=T["desc"],
+        canonical=f"{site_url}/{lang}/",
+        base="../",
+        body=body,
+        verified=verified,
+        lang_code=lang,
+        alternates=hreflang_links(site_url),
+        extra_js=HOME_CAL_JS,
+    )
+
+
 def page_index(countries: list[tuple[str, str, str]], by_country, site_url: str, verified: str,
                catalog: dict | None = None, today: date | None = None) -> str:
     cards = []
@@ -1349,6 +1637,7 @@ def page_index(countries: list[tuple[str, str, str]], by_country, site_url: str,
         verified=verified,
         json_ld=faq_json_ld(faq),
         extra_js=HOME_CAL_JS,
+        alternates=hreflang_links(site_url),
     )
 
 
@@ -2334,6 +2623,16 @@ def main() -> int:
         page_index(countries, by_country, site_url, verified, catalog, today), encoding="utf-8"
     )
     urls.append(("", "1.0"))
+
+    # localized home pages + hreflang
+    for lang in HOME_I18N:
+        lang_dir = out / lang
+        lang_dir.mkdir(exist_ok=True)
+        (lang_dir / "index.html").write_text(
+            page_lang_home(lang, countries, by_country, site_url, verified, today),
+            encoding="utf-8",
+        )
+        urls.append((f"{lang}/", "0.8"))
 
     for cc, name, slug in countries:
         years = sorted(by_country[cc].keys(), reverse=True)
