@@ -1998,6 +1998,14 @@ def main() -> int:
     (out / "sitemap.xml").write_text(index_text, encoding="utf-8")
     (out / "sitemap_index.xml").write_text(index_text, encoding="utf-8")
 
+    # minimal sitemap (diagnostics: isolate content issues from fetch/property issues)
+    min_lines = ['<?xml version="1.0" encoding="UTF-8"?>',
+                 '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
+    for path, _priority in urls[:5]:
+        min_lines.append(f"<url><loc>{site_url}/{path}</loc></url>")
+    min_lines.append("</urlset>")
+    (out / "sitemap-min.xml").write_text("\n".join(min_lines), encoding="utf-8")
+
     (out / "robots.txt").write_text(
         "User-agent: *\nAllow: /\nSitemap: " + site_url + "/sitemap.xml\n",
         encoding="utf-8",
