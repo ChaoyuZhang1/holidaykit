@@ -1078,6 +1078,7 @@ def footer_html(base: str, verified: str) -> str:
         f'<div><strong data-i18n="foot.developers">Developers</strong>'
         f'<a href="{base}api/index.html" data-i18n="nav.api">Free API</a>'
         f'<a href="{base}embed/index.html" data-i18n="foot.embed">Embed widget</a>'
+        '<a href="https://workdaykit.pages.dev">Business days calculator</a>'
         f'<a href="{base}premium/index.html" data-i18n="foot.premium">Premium</a></div>'
         f'<div><strong data-i18n="foot.data">Data</strong>'
         f'<a href="{base}about/index.html" data-i18n="foot.about">About &amp; sources</a>'
