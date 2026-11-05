@@ -248,6 +248,11 @@ tbody tr:hover{background:#fcfbf8}
 .two-col{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:12px}
 .two-col h3{margin:0 0 8px;font-size:.98rem}
 @media(max-width:760px){.two-col{grid-template-columns:1fr}}
+.cal-list{list-style:none;margin:10px 0 0;padding:0;display:grid;gap:4px;font-size:.8rem}
+.cal-list li{display:flex;gap:8px;align-items:baseline;color:var(--ink-soft);line-height:1.35}
+.cal-date{flex:0 0 auto;color:var(--muted);font-variant-numeric:tabular-nums;min-width:50px}
+.cal-month .cal-list{font-size:.7rem;margin-top:8px;gap:3px}
+.cal-month .cal-date{min-width:42px}
 """
 
 JS = """
@@ -326,7 +331,13 @@ HOME_CAL_JS = r"""
   function pad(n){ return (n < 10 ? '0' : '') + n; }
   function key(d){ return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
   function monthLabel(){ return new Date(state.year, state.month, 1).toLocaleDateString(undefined, { month: 'long', year: 'numeric' }); }
-  function holidayMap(){ var map = {}; ((state.data && state.data.holidays) || []).forEach(function(h){ map[h.date] = h.name; }); return map; }
+  function holidayMap(){
+    var map = {};
+    ((state.data && state.data.holidays) || []).forEach(function (h) {
+      map[h.date] = (h.localName && h.localName !== h.name) ? h.name + ' · ' + h.localName : h.name;
+    });
+    return map;
+  }
   function cnMaps(){
     var rest = {}, work = {};
     var sup = state.data && state.data.supplementary;
@@ -358,6 +369,15 @@ HOME_CAL_JS = r"""
       html += '<div class="' + cls + '" title="' + tt + '">' + i + '</div>';
     }
     html += '</div>';
+    var listItems = [];
+    Object.keys(hol).sort().forEach(function (k) {
+      var d = new Date(k + 'T00:00:00');
+      if (d.getFullYear() === state.year && d.getMonth() === state.month) {
+        listItems.push('<li><span class="cal-date">' + d.getDate() + ' ' +
+          d.toLocaleDateString(undefined, { month: 'short' }) + '</span>' + hol[k] + '</li>');
+      }
+    });
+    if (listItems.length) html += '<ul class="cal-list">' + listItems.join('') + '</ul>';
     body.innerHTML = html;
     if (titleEl) titleEl.textContent = monthLabel();
   }
@@ -724,11 +744,15 @@ def holiday_table(rows: list[dict]) -> str:
         regional = ""
         if row.get("counties") and not row.get("global"):
             regional = ' <span class="badge">regional</span>'
+        local_name = str(row.get("localName") or "")
+        local_html = ""
+        if local_name and local_name != str(row.get("name") or ""):
+            local_html = f' <span class="muted">· {esc(local_name)}</span>'
         body.append(
             "<tr>"
             f"<td>{esc(fmt_date(d))}</td>"
             f"<td>{esc(fmt_weekday(d))}</td>"
-            f"<td>{esc(row['name'])}{regional}</td>"
+            f"<td>{esc(row['name'])}{local_html}{regional}</td>"
             f'<td data-date="{esc(row["date"])}" data-countdown></td>'
             "</tr>"
         )
@@ -848,11 +872,24 @@ def month_calendar_html(year: int, rows: list[dict], cn: dict | None = None) -> 
                     f'<div class="{cls}" title="{esc("; ".join(titles))}">{day}</div>'
                 )
         head = "".join(f"<span>{w}</span>" for w in ["M", "T", "W", "T", "F", "S", "S"])
+        month_hols = [
+            (d, holidays[d]) for d in sorted(holidays)
+            if d.year == year and d.month == month
+        ]
+        month_list = ""
+        if month_hols:
+            items = "".join(
+                f'<li><span class="cal-date">{d.day} {MONTHS_ABBR[d.month - 1]}</span>'
+                f'{esc(", ".join(names))}</li>'
+                for d, names in month_hols[:6]
+            )
+            month_list = '<ul class="cal-list">' + items + "</ul>"
         months.append(
             '<div class="cal-month">'
             f'<div class="cal-title">{calendar.month_name[month]}</div>'
             f'<div class="cal-head">{head}</div>'
-            '<div class="cal-grid">' + "".join(cells) + "</div></div>"
+            '<div class="cal-grid">' + "".join(cells) + "</div>"
+            + month_list + "</div>"
         )
     legend = (
         '<div class="cal-legend"><span class="cal-key cal-holiday-key"></span>Public holiday'
@@ -912,9 +949,21 @@ def single_month_html(year: int, month: int, rows: list[dict], cn: dict | None =
             title = ", ".join(holidays.get(d, []))
             cells.append(f'<div class="{cls}" title="{esc(title)}">{day}</div>')
     head = "".join(f"<span>{w}</span>" for w in ["M", "T", "W", "T", "F", "S", "S"])
+    month_hols = [
+        (d, holidays[d]) for d in sorted(holidays)
+        if d.year == year and d.month == month
+    ]
+    month_list = ""
+    if month_hols:
+        items = "".join(
+            f'<li><span class="cal-date">{d.day} {MONTHS_ABBR[d.month - 1]}</span>'
+            f'{esc(", ".join(names))}</li>'
+            for d, names in month_hols[:8]
+        )
+        month_list = '<ul class="cal-list">' + items + "</ul>"
     return (
         '<div class="cal-head">' + head + "</div>"
-        '<div class="cal-grid">' + "".join(cells) + "</div>"
+        '<div class="cal-grid">' + "".join(cells) + "</div>" + month_list
     )
 
 
@@ -2027,6 +2076,19 @@ def main() -> int:
         print("No public holidays found in the data file.")
         return 1
 
+    # Enrich China rows with Chinese local names from 调休/补班 data
+    cn_names: dict[str, str] = {}
+    for _year_key, _data in (CN_CAL or {}).items():
+        for _item in (_data.get("rest") or []) + (_data.get("work") or []):
+            if _item.get("date") and _item.get("name"):
+                cn_names[_item["date"]] = _item["name"]
+    if cn_names and "CN" in by_country:
+        for _rows in by_country["CN"].values():
+            for _row in _rows:
+                _zh = cn_names.get(str(_row.get("date")))
+                if _zh and _zh != _row.get("name"):
+                    _row["localName"] = _zh
+
     countries = []
     used_slugs = set()
     for cc in sorted(by_country):
@@ -2209,6 +2271,7 @@ def main() -> int:
                 payload_rows.append({
                     "date": row["date"],
                     "name": row["name"],
+                    "localName": row.get("localName") or row["name"],
                     "types": row.get("types") or [],
                     "global": bool(row.get("global")),
                     "counties": row.get("counties") or [],
