@@ -44,6 +44,7 @@ OG_IMAGE = False
 GOOGLE_VERIFY = ""
 SCHOOL_DATA: dict = {}
 SCHOOL_NAMES: dict = {}
+CN_CAL: dict = {}
 
 MONTHS_ABBR = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
@@ -231,6 +232,22 @@ tbody tr:hover{background:#fcfbf8}
 .cal-weekend-key{background:var(--soft);border:1px solid var(--line)}
 .mobile-cta{display:none}
 @media(max-width:720px){.mobile-cta{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:30;gap:8px;padding:10px 14px;background:rgba(251,250,247,.97);border-top:1px solid var(--line);backdrop-filter:blur(12px)}.mobile-cta .btn{flex:1;padding:12px 16px}.site-foot{padding-bottom:104px}}
+.hero-cal{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:20px;box-shadow:0 18px 50px rgba(21,22,26,.08)}
+.cal-toolbar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}
+.cal-month-label{font-weight:650;font-size:1rem}
+.cal-nav-btn{width:32px;height:32px;border-radius:10px;border:1px solid var(--line);background:var(--surface);cursor:pointer;font-size:1.05rem;line-height:1;color:var(--ink)}
+.cal-nav-btn:hover{border-color:var(--ink)}
+.cal-single .cal-grid{margin-top:6px}
+.cal-single .cal-cell{padding:8px 0;font-size:.8rem}
+.cal-foot{margin-top:14px;padding-top:12px;border-top:1px solid var(--line);font-size:.84rem;color:var(--muted);display:flex;gap:6px;flex-wrap:wrap}
+.cal-country{color:var(--ink);font-weight:600}
+.cal-rest{background:#fff7e6;color:#8a5a00}
+.cal-makeup{background:#fee2e2;color:#991b1b;font-weight:700}
+.cal-rest-key{background:#fff7e6;border:1px solid #f3d9a4}
+.cal-makeup-key{background:#fee2e2;border:1px solid #fca5a5}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:12px}
+.two-col h3{margin:0 0 8px;font-size:.98rem}
+@media(max-width:760px){.two-col{grid-template-columns:1fr}}
 """
 
 JS = """
@@ -261,6 +278,142 @@ JS = """
       } catch(e){}
     });
   });
+})();
+"""
+
+# Homepage calendar: detect visitor country (edge geo → timezone → language) and render a month calendar
+HOME_CAL_JS = r"""
+(function(){
+  var root = document.getElementById('hk-home-cal');
+  if (!root) return;
+  var body = root.querySelector('[data-cal-body]');
+  var titleEl = root.querySelector('[data-cal-title]');
+  var countryEl = root.querySelector('[data-cal-country]');
+  var linkEl = root.querySelector('[data-cal-link]');
+  var today = new Date();
+  var state = {
+    cc: (root.getAttribute('data-default-country') || 'US').toUpperCase(),
+    year: today.getFullYear(),
+    month: today.getMonth(),
+    name: '', slug: '', data: null, countries: null
+  };
+  var TZ = {
+    'Asia/Shanghai':'CN','Asia/Chongqing':'CN','Asia/Urumqi':'CN','Asia/Harbin':'CN',
+    'Asia/Hong_Kong':'HK','Asia/Macau':'MO','Asia/Taipei':'TW','Asia/Tokyo':'JP',
+    'Asia/Seoul':'KR','Asia/Singapore':'SG','Asia/Kuala_Lumpur':'MY','Asia/Bangkok':'TH',
+    'Asia/Jakarta':'ID','Asia/Manila':'PH','Asia/Kolkata':'IN','Asia/Calcutta':'IN',
+    'Asia/Karachi':'PK','Asia/Dhaka':'BD','Asia/Dubai':'AE','Asia/Riyadh':'SA',
+    'Asia/Jerusalem':'IL','Asia/Istanbul':'TR','Asia/Ho_Chi_Minh':'VN','Asia/Saigon':'VN',
+    'Europe/London':'GB','Europe/Dublin':'IE','Europe/Paris':'FR','Europe/Berlin':'DE',
+    'Europe/Madrid':'ES','Europe/Rome':'IT','Europe/Amsterdam':'NL','Europe/Brussels':'BE',
+    'Europe/Vienna':'AT','Europe/Zurich':'CH','Europe/Lisbon':'PT','Europe/Stockholm':'SE',
+    'Europe/Oslo':'NO','Europe/Copenhagen':'DK','Europe/Helsinki':'FI','Europe/Warsaw':'PL',
+    'Europe/Prague':'CZ','Europe/Budapest':'HU','Europe/Athens':'GR','Europe/Moscow':'RU',
+    'Europe/Kiev':'UA','Europe/Kyiv':'UA','America/New_York':'US','America/Chicago':'US',
+    'America/Denver':'US','America/Los_Angeles':'US','America/Toronto':'CA',
+    'America/Vancouver':'CA','America/Mexico_City':'MX','America/Sao_Paulo':'BR',
+    'America/Argentina/Buenos_Aires':'AR','America/Bogota':'CO','America/Lima':'PE',
+    'Australia/Sydney':'AU','Australia/Melbourne':'AU','Australia/Brisbane':'AU',
+    'Pacific/Auckland':'NZ','Africa/Johannesburg':'ZA','Africa/Cairo':'EG',
+    'Africa/Lagos':'NG','Africa/Nairobi':'KE'
+  };
+  var LOC = {
+    'zh-cn':'CN','zh-sg':'SG','zh-tw':'TW','zh-hk':'HK','zh':'CN','ja':'JP','ko':'KR',
+    'th':'TH','vi':'VN','id':'ID','ms':'MY','en-gb':'GB','en-au':'AU','en-ca':'CA',
+    'en-nz':'NZ','en-ie':'IE','en-in':'IN','de':'DE','fr':'FR','es':'ES','it':'IT',
+    'pt':'PT','nl':'NL','pl':'PL','ru':'RU','tr':'TR','ar':'AE','he':'IL'
+  };
+  function pad(n){ return (n < 10 ? '0' : '') + n; }
+  function key(d){ return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
+  function monthLabel(){ return new Date(state.year, state.month, 1).toLocaleDateString(undefined, { month: 'long', year: 'numeric' }); }
+  function holidayMap(){ var map = {}; ((state.data && state.data.holidays) || []).forEach(function(h){ map[h.date] = h.name; }); return map; }
+  function cnMaps(){
+    var rest = {}, work = {};
+    var sup = state.data && state.data.supplementary;
+    if (sup) {
+      (sup.rest || []).forEach(function(x){ rest[x.date] = x.name || ''; });
+      (sup.work || []).forEach(function(x){ work[x.date] = x.name || ''; });
+    }
+    return { rest: rest, work: work };
+  }
+  function render(){
+    if (!body) return;
+    var hol = holidayMap(), cn = cnMaps();
+    var first = new Date(state.year, state.month, 1);
+    var start = (first.getDay() + 6) % 7;
+    var days = new Date(state.year, state.month + 1, 0).getDate();
+    var heads = ['M','T','W','T','F','S','S'].map(function(w){ return '<span>' + w + '</span>'; }).join('');
+    var html = '<div class="cal-head">' + heads + '</div><div class="cal-grid">';
+    var i;
+    for (i = 0; i < start; i++) html += '<div class="cal-cell muted"></div>';
+    for (i = 1; i <= days; i++) {
+      var d = new Date(state.year, state.month, i);
+      var k = key(d), cls = 'cal-cell';
+      if (d.getDay() === 0 || d.getDay() === 6) cls += ' cal-weekend';
+      if (hol[k]) cls += ' cal-holiday';
+      if (cn.rest[k]) cls += ' cal-rest';
+      if (cn.work[k]) cls += ' cal-makeup';
+      var tt = hol[k] || '';
+      if (cn.work[k]) tt = (tt ? tt + ' / ' : '') + '补班';
+      html += '<div class="' + cls + '" title="' + tt + '">' + i + '</div>';
+    }
+    html += '</div>';
+    body.innerHTML = html;
+    if (titleEl) titleEl.textContent = monthLabel();
+  }
+  function loadYear(cb){
+    fetch('api/v1/holidays/' + state.cc + '/' + state.year + '.json')
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(d){ state.data = d; if (cb) cb(); })
+      .catch(function(){ state.data = null; if (cb) cb(); });
+  }
+  function setCountry(cc){
+    var info = state.countries && state.countries[cc];
+    if (!info) { info = state.countries && state.countries[state.cc]; }
+    if (!info) return;
+    state.cc = info.code; state.name = info.name; state.slug = info.slug;
+    if (countryEl) countryEl.textContent = info.name;
+    if (linkEl) linkEl.href = info.slug + '/index.html';
+    loadYear(render);
+  }
+  function guess(){
+    try {
+      var tz = (Intl.DateTimeFormat().resolvedOptions().timeZone || '');
+      if (TZ[tz]) return TZ[tz];
+    } catch (e) {}
+    var lang = (navigator.language || '').toLowerCase();
+    if (LOC[lang]) return LOC[lang];
+    var base = lang.split('-')[0];
+    if (LOC[base]) return LOC[base];
+    if (lang === 'en-us') return 'US';
+    return 'US';
+  }
+  function init(){
+    Promise.all([
+      fetch('api/v1/countries.json').then(function(r){ return r.ok ? r.json() : null; }).then(function(d){
+        var map = {};
+        ((d && d.countries) || []).forEach(function(c){ map[c.code] = c; });
+        return map;
+      }).catch(function(){ return null; }),
+      fetch('/geo').then(function(r){ return r.ok ? r.json() : null; }).catch(function(){ return null; })
+    ]).then(function(res){
+      state.countries = res[0] || {};
+      var geo = res[1] || {};
+      var cc = (geo.country || '').toUpperCase();
+      if (!state.countries[cc]) cc = guess();
+      if (!state.countries[cc]) cc = 'US';
+      setCountry(cc);
+    });
+  }
+  var prev = root.querySelector('[data-cal-prev]');
+  var next = root.querySelector('[data-cal-next]');
+  if (prev) prev.addEventListener('click', function(){
+    state.month--; if (state.month < 0) { state.month = 11; state.year--; loadYear(render); } else { render(); }
+  });
+  if (next) next.addEventListener('click', function(){
+    state.month++; if (state.month > 11) { state.month = 0; state.year++; loadYear(render); } else { render(); }
+  });
+  init();
 })();
 """
 
@@ -507,7 +660,8 @@ def footer_html(base: str, verified: str) -> str:
 
 def render_page(*, title: str, description: str, canonical: str, base: str,
                 body: str, verified: str, json_ld: str = "",
-                cta_href: str = "", cta_label: str = "Browse countries") -> str:
+                cta_href: str = "", cta_label: str = "Browse countries",
+                extra_js: str = "") -> str:
     head = (
         '<!doctype html><html lang="en"><head><meta charset="utf-8">'
         '<meta name="viewport" content="width=device-width,initial-scale=1">'
@@ -556,7 +710,9 @@ def render_page(*, title: str, description: str, canonical: str, base: str,
         + '<main class="wrap">' + body + "</main>"
         + footer_html(base, verified)
         + mobile_cta
-        + f"<script>{JS}</script></body></html>"
+        + f"<script>{JS}</script>"
+        + (f"<script>{extra_js}</script>" if extra_js else "")
+        + "</body></html>"
     )
 
 
@@ -639,7 +795,7 @@ def long_weekend_cards(runs: list[dict], limit: int = 12) -> str:
     return '<div class="lw-grid">' + "".join(cards) + "</div>"
 
 
-def month_calendar_html(year: int, rows: list[dict]) -> str:
+def month_calendar_html(year: int, rows: list[dict], cn: dict | None = None) -> str:
     holidays: dict[date, list[str]] = {}
     for row in rows:
         try:
@@ -648,6 +804,19 @@ def month_calendar_html(year: int, rows: list[dict]) -> str:
             continue
         if day.year == year:
             holidays.setdefault(day, []).append(str(row["name"]))
+    rest_days: dict[date, str] = {}
+    work_days: dict[date, str] = {}
+    if cn:
+        for item in cn.get("rest") or []:
+            try:
+                rest_days[date.fromisoformat(item["date"])] = item.get("name") or ""
+            except (KeyError, ValueError):
+                continue
+        for item in cn.get("work") or []:
+            try:
+                work_days[date.fromisoformat(item["date"])] = item.get("name") or ""
+            except (KeyError, ValueError):
+                continue
     months: list[str] = []
     for month in range(1, 13):
         weeks = calendar.Calendar(firstweekday=0).monthdayscalendar(year, month)
@@ -661,10 +830,22 @@ def month_calendar_html(year: int, rows: list[dict]) -> str:
                 cls = "cal-cell"
                 if d.weekday() >= 5:
                     cls += " cal-weekend"
+                if d in rest_days:
+                    cls += " cal-rest"
                 if d in holidays:
                     cls += " cal-holiday"
-                title = ", ".join(holidays.get(d, []))
-                cells.append(f'<div class="{cls}" title="{esc(title)}">{day}</div>')
+                if d in work_days:
+                    cls += " cal-makeup"
+                titles = []
+                if d in holidays:
+                    titles.append(", ".join(holidays[d]))
+                if d in rest_days and rest_days[d]:
+                    titles.append(f"调休：{rest_days[d]}")
+                if d in work_days:
+                    titles.append(f"补班：{work_days[d]}")
+                cells.append(
+                    f'<div class="{cls}" title="{esc("; ".join(titles))}">{day}</div>'
+                )
         head = "".join(f"<span>{w}</span>" for w in ["M", "T", "W", "T", "F", "S", "S"])
         months.append(
             '<div class="cal-month">'
@@ -672,12 +853,67 @@ def month_calendar_html(year: int, rows: list[dict]) -> str:
             f'<div class="cal-head">{head}</div>'
             '<div class="cal-grid">' + "".join(cells) + "</div></div>"
         )
+    legend = (
+        '<div class="cal-legend"><span class="cal-key cal-holiday-key"></span>Public holiday'
+        '<span class="cal-key cal-weekend-key"></span>Weekend'
+    )
+    if rest_days or work_days:
+        legend += (
+            '<span class="cal-key cal-rest-key"></span>调休休息'
+            '<span class="cal-key cal-makeup-key"></span>补班'
+        )
+    legend += "</div>"
     return (
         '<section class="sec"><h2>Calendar view</h2>'
         '<p class="sub">Public holidays highlighted, weekends shaded.</p>'
-        '<div class="cal-year">' + "".join(months) + "</div>"
-        '<div class="cal-legend"><span class="cal-key cal-holiday-key"></span>Public holiday'
-        '<span class="cal-key cal-weekend-key"></span>Weekend</div></section>'
+        '<div class="cal-year">' + "".join(months) + "</div>" + legend + "</section>"
+    )
+
+
+def single_month_html(year: int, month: int, rows: list[dict], cn: dict | None = None) -> str:
+    holidays: dict[date, list[str]] = {}
+    for row in rows:
+        try:
+            day = date.fromisoformat(str(row["date"]))
+        except (KeyError, ValueError):
+            continue
+        holidays.setdefault(day, []).append(str(row["name"]))
+    rest_days: set[date] = set()
+    work_days: set[date] = set()
+    if cn:
+        for item in cn.get("rest") or []:
+            try:
+                rest_days.add(date.fromisoformat(item["date"]))
+            except (KeyError, ValueError):
+                continue
+        for item in cn.get("work") or []:
+            try:
+                work_days.add(date.fromisoformat(item["date"]))
+            except (KeyError, ValueError):
+                continue
+    weeks = calendar.Calendar(firstweekday=0).monthdayscalendar(year, month)
+    cells: list[str] = []
+    for week in weeks:
+        for day in week:
+            if day == 0:
+                cells.append('<div class="cal-cell muted"></div>')
+                continue
+            d = date(year, month, day)
+            cls = "cal-cell"
+            if d.weekday() >= 5:
+                cls += " cal-weekend"
+            if d in holidays:
+                cls += " cal-holiday"
+            if d in rest_days:
+                cls += " cal-rest"
+            if d in work_days:
+                cls += " cal-makeup"
+            title = ", ".join(holidays.get(d, []))
+            cells.append(f'<div class="{cls}" title="{esc(title)}">{day}</div>')
+    head = "".join(f"<span>{w}</span>" for w in ["M", "T", "W", "T", "F", "S", "S"])
+    return (
+        '<div class="cal-head">' + head + "</div>"
+        '<div class="cal-grid">' + "".join(cells) + "</div>"
     )
 
 
@@ -704,7 +940,7 @@ def faq_json_ld(pairs: list[tuple[str, str]]) -> str:
 
 # ── page generators ────────────────────────────────────────────────────────
 
-def build_ics(cc: str, name: str, year: int, rows: list[dict]) -> str:
+def build_ics(cc: str, name: str, year: int, rows: list[dict], cn: dict | None = None) -> str:
     lines = [
         "BEGIN:VCALENDAR",
         "VERSION:2.0",
@@ -733,6 +969,30 @@ def build_ics(cc: str, name: str, year: int, rows: list[dict]) -> str:
             "TRANSP:TRANSPARENT",
             "END:VEVENT",
         ])
+    if cn:
+        holiday_dates = {str(row.get("date")) for row in rows}
+        extra: list[tuple[str, str, str]] = []
+        for item in cn.get("rest") or []:
+            if item.get("date") and item["date"] not in holiday_dates:
+                extra.append((item["date"], f"{item.get('name') or '调休'}(调休)", "rest"))
+        for item in cn.get("work") or []:
+            if item.get("date"):
+                extra.append((item["date"], f"{item.get('name') or '补班'}(补班上班)", "work"))
+        for index, (day, summary, kind) in enumerate(extra):
+            try:
+                d = date.fromisoformat(day)
+            except ValueError:
+                continue
+            lines.extend([
+                "BEGIN:VEVENT",
+                f"UID:cn-{kind}-{day}-{index}@holidaykit",
+                f"DTSTAMP:{stamp}",
+                f"DTSTART;VALUE=DATE:{d.strftime('%Y%m%d')}",
+                f"DTEND;VALUE=DATE:{(d + timedelta(days=1)).strftime('%Y%m%d')}",
+                f"SUMMARY:{ics_escape(summary)}",
+                "TRANSP:TRANSPARENT",
+                "END:VEVENT",
+            ])
     lines.append("END:VCALENDAR")
     return "\r\n".join(lines) + "\r\n"
 
@@ -753,31 +1013,25 @@ def page_index(countries: list[tuple[str, str, str]], by_country, site_url: str,
     total_holidays = sum(sum(len(by_country[cc][y]) for y in by_country[cc]) for cc, _, _ in countries)
     all_years = sorted({y for cc, _, _ in countries for y in by_country[cc]})
     year_label = f"{all_years[0]}–{all_years[-1]}" if len(all_years) > 1 else str(all_years[0])
-    feature = next((c for c in countries if c[0] == "US"), countries[0])
-    feature_cc, feature_name, feature_slug = feature
-    feature_year = max(by_country[feature_cc])
-    feature_rows = [r for y in by_country[feature_cc] for r in by_country[feature_cc][y]]
-    feature_runs = compute_long_weekends(feature_rows, feature_year)
-    if feature_runs:
-        feature_run = feature_runs[0]
-        best = max(feature_run["options"], key=lambda o: (o["total"], -o["pto"]))
-        leave_note = "No leave needed" if best["pto"] == 0 else f'{best["pto"]} day(s) of leave'
-        feature_card = (
-            '<aside class="hero-card">'
-            f'<div class="flag">{flag_emoji(feature_cc)}</div>'
-            f'<h3>{esc(feature_run["name"])}</h3>'
-            f'<p class="muted">{esc(fmt_range(feature_run["start"], feature_run["end"]))} · {esc(feature_name)}</p>'
-            f'<div class="days">{best["total"]}<span>days off</span></div>'
-            f'<p class="muted">{leave_note}</p>'
-            f'<p style="margin-top:16px"><a class="btn ghost" '
-            f'href="{feature_slug}/{feature_year}/long-weekends/index.html">See all long weekends</a></p>'
-            "</aside>"
-        )
-    else:
-        feature_card = (
-            '<aside class="hero-card"><div class="flag">📅</div><h3>Long weekends</h3>'
-            '<p class="muted">Find the best days to take off this year.</p></aside>'
-        )
+    default_country = next((c for c in countries if c[0] == "US"), countries[0])
+    default_cc, default_name, default_slug = default_country
+    cal_year = today.year
+    cal_month = today.month
+    default_year = cal_year if cal_year in by_country[default_cc] else max(by_country[default_cc])
+    default_rows = by_country[default_cc].get(cal_year) or by_country[default_cc][default_year]
+    fallback_cal = single_month_html(cal_year, cal_month, default_rows)
+    feature_card = (
+        f'<aside class="hero-cal" id="hk-home-cal" data-default-country="{default_cc}">'
+        '<div class="cal-toolbar">'
+        '<button type="button" class="cal-nav-btn" data-cal-prev aria-label="Previous month">‹</button>'
+        f'<span class="cal-month-label" data-cal-title>{calendar.month_name[cal_month]} {cal_year}</span>'
+        '<button type="button" class="cal-nav-btn" data-cal-next aria-label="Next month">›</button>'
+        "</div>"
+        '<div class="cal-single" data-cal-body>' + fallback_cal + "</div>"
+        '<div class="cal-foot"><span class="cal-country" data-cal-country>' + esc(default_name) + "</span>"
+        f'<span>·</span><a data-cal-link href="{default_slug}/index.html">Open full calendar</a></div>'
+        "</aside>"
+    )
     body = (
         '<section class="hero"><div class="hero-inner"><div>'
         f'<p class="eyebrow">Public holidays · long weekends · {len(countries)} countries</p>'
@@ -786,8 +1040,8 @@ def page_index(countries: list[tuple[str, str, str]], by_country, site_url: str,
         "one-click calendar subscriptions — for every country and year that matter.</p>"
         '<div class="cta-row">'
         '<a class="btn" href="#countries">Browse countries</a>'
-        f'<a class="btn ghost" href="{feature_slug}/{feature_year}/index.html">'
-        f"{esc(feature_name)} holidays</a>"
+        f'<a class="btn ghost" href="{default_slug}/{default_year}/index.html">'
+        f"{esc(default_name)} holidays</a>"
         "</div>"
         '<div class="stats">'
         f'<div class="stat"><div class="num">{len(countries)}</div><div class="lbl">Countries</div></div>'
@@ -829,6 +1083,7 @@ def page_index(countries: list[tuple[str, str, str]], by_country, site_url: str,
         body=body,
         verified=verified,
         json_ld=faq_json_ld(faq),
+        extra_js=HOME_CAL_JS,
     )
 
 
@@ -904,6 +1159,8 @@ def page_country(cc: str, name: str, slug: str, by_country, site_url: str, verif
         ("How do I add these holidays to Google Calendar?", "Open Google Calendar, choose 'Other calendars' → "
                                                             "'From URL', and paste the .ics link for the country and year."),
     ]
+    if cc == "CN":
+        body += cn_summary_html(latest)
     body += official_source_html(cc)
     body += affiliate_block(name)
     body += embed_block(cc, latest)
@@ -926,6 +1183,7 @@ def page_country(cc: str, name: str, slug: str, by_country, site_url: str, verif
 
 def page_year(cc: str, name: str, slug: str, year: int, rows: list[dict], runs: list[dict],
               site_url: str, verified: str) -> str:
+    cn = cn_year_data(year) if cc == "CN" else None
     body = (
         '<section class="hero">'
         f'<p class="badge">{esc(name)} · {year}</p>'
@@ -934,12 +1192,13 @@ def page_year(cc: str, name: str, slug: str, year: int, rows: list[dict], runs: 
         "countdowns and the long weekends you can build around them.</p>"
         "</section>"
         + holiday_table(rows)
-        + month_calendar_html(year, rows)
+        + month_calendar_html(year, rows, cn)
         + '<section class="ad">[Ad slot]</section>'
         + f'<section class="sec"><h2>Long weekends and bridge days in {year}</h2>'
         + long_weekend_cards(runs, 8)
         + f'<p><a class="btn ghost" href="long-weekends/index.html">Full {year} long weekend guide</a></p>'
         "</section>"
+        + (cn_summary_html(year) if cc == "CN" else "")
         + '<section class="sec" id="calendar"><h2>Subscribe</h2>'
         f'<p><a class="btn" href="../calendar-{year}.ics">Add {esc(name)} {year} to my calendar</a></p>'
         "</section>"
@@ -1066,6 +1325,69 @@ def load_school(path: Path) -> tuple[dict, dict]:
     if not isinstance(raw, dict):
         return {}, {}
     return raw.get("countries") or {}, raw.get("countryNames") or {}
+
+
+def load_cn_calendar(path: Path) -> dict:
+    try:
+        raw = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    if not isinstance(raw, dict):
+        return {}
+    return raw.get("years") or {}
+
+
+def cn_year_data(year: int) -> dict:
+    return CN_CAL.get(str(year)) or {}
+
+
+def cn_summary_html(year: int) -> str:
+    data = cn_year_data(year)
+    if not data:
+        return ""
+    rest = data.get("rest") or []
+    work = data.get("work") or []
+    if not rest and not work:
+        return ""
+    return (
+        '<section class="sec"><h2>中国的调休与补班 · ' + str(year) + "</h2>"
+        '<p class="sub">中国节假日的调休安排与补班工作日（数据来自公开的中国节假日日历）。</p>'
+        '<div class="chips">'
+        f'<span class="chip">调休休息 {len(rest)} 天</span>'
+        f'<span class="chip">补班 {len(work)} 天</span>'
+        "</div>"
+        + cn_tables_html(year, rest, work)
+        + "</section>"
+    )
+
+
+def cn_tables_html(year: int, rest: list[dict], work: list[dict]) -> str:
+    def rows(items: list[dict]) -> str:
+        out = []
+        for item in items:
+            try:
+                d = date.fromisoformat(item["date"])
+            except (KeyError, ValueError):
+                continue
+            out.append(
+                "<tr>"
+                f"<td>{esc(fmt_date(d))}</td>"
+                f"<td>{esc(fmt_weekday(d))}</td>"
+                f"<td>{esc(item.get('name') or '—')}</td>"
+                "</tr>"
+            )
+        return "".join(out)
+
+    return (
+        '<div class="two-col">'
+        '<div><h3>调休休息日</h3><div class="tbl-wrap"><table><thead><tr>'
+        "<th>日期</th><th>星期</th><th>节日</th>"
+        "</tr></thead><tbody>" + rows(rest) + "</tbody></table></div></div>"
+        '<div><h3>补班工作日</h3><div class="tbl-wrap"><table><thead><tr>'
+        "<th>日期</th><th>星期</th><th>节日</th>"
+        "</tr></thead><tbody>" + rows(work) + "</tbody></table></div></div>"
+        "</div>"
+    )
 
 
 def school_ics(cc: str, name: str, year: int, ranges: list[dict]) -> str:
@@ -1667,7 +1989,7 @@ def main() -> int:
     parser.add_argument("--indexnow-key", nargs="?", const="", default="", help="IndexNow key (written as /{key}.txt for Bing/Yandex)")
     args = parser.parse_args()
 
-    global SITE_URL, AFFILIATE_URL, CONTACT_EMAIL, ADSENSE_CLIENT, OFFICIAL_SOURCES, OG_IMAGE, GOOGLE_VERIFY, SCHOOL_DATA, SCHOOL_NAMES
+    global SITE_URL, AFFILIATE_URL, CONTACT_EMAIL, ADSENSE_CLIENT, OFFICIAL_SOURCES, OG_IMAGE, GOOGLE_VERIFY, SCHOOL_DATA, SCHOOL_NAMES, CN_CAL
     SITE_URL = args.site_url.rstrip("/")
     AFFILIATE_URL = args.affiliate_url
     CONTACT_EMAIL = args.contact_email
@@ -1675,6 +1997,7 @@ def main() -> int:
     GOOGLE_VERIFY = args.google_site_verification.strip()
     OFFICIAL_SOURCES = load_official_sources(Path(args.official_sources))
     SCHOOL_DATA, SCHOOL_NAMES = load_school(ROOT / "data" / "school.json")
+    CN_CAL = load_cn_calendar(ROOT / "data" / "cn_calendar.json")
     OG_IMAGE = (ROOT / "assets" / "og-cover.png").exists()
 
     data_path = Path(args.data)
@@ -1772,7 +2095,8 @@ def main() -> int:
             urls.append((f"{slug}/{year}/long-weekends/", "0.7"))
 
             (country_dir / f"calendar-{year}.ics").write_text(
-                build_ics(cc, name, year, year_rows), encoding="utf-8"
+                build_ics(cc, name, year, year_rows, cn_year_data(year) if cc == "CN" else None),
+                encoding="utf-8",
             )
 
     # ── holiday guides & countdowns ──
@@ -1888,12 +2212,21 @@ def main() -> int:
                     "global": bool(row.get("global")),
                     "counties": row.get("counties") or [],
                 })
+            api_payload = {
+                "country": cc,
+                "name": name,
+                "year": year,
+                "holidays": payload_rows,
+            }
+            if cc == "CN":
+                cn_data = cn_year_data(year)
+                if cn_data:
+                    api_payload["supplementary"] = {
+                        "rest": cn_data.get("rest") or [],
+                        "work": cn_data.get("work") or [],
+                    }
             (cc_dir / f"{year}.json").write_text(
-                json.dumps(
-                    {"country": cc, "name": name, "year": year, "holidays": payload_rows},
-                    ensure_ascii=False,
-                    indent=2,
-                ),
+                json.dumps(api_payload, ensure_ascii=False, indent=2),
                 encoding="utf-8",
             )
 
