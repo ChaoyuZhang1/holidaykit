@@ -3395,7 +3395,10 @@ def page_api_docs(site_url: str, verified: str, countries: list[tuple[str, str, 
         "<li>Rows include <code>types</code> (Public / Bank / School), <code>global</code> and "
         "<code>counties</code> (regional scope).</li>"
         "<li>Data is rebuilt when sources change; see <code>generatedAt</code> in countries.json.</li>"
-        "<li>Commercial use under the free tier requires a link back to HolidayKit.</li>"
+        "<li>Rate limit: 240 requests/minute per IP. Over the limit returns HTTP 429 with "
+        "<code>Retry-After</code>; responses are cacheable for a day, so cache them.</li>"
+        "<li>Commercial use under the free tier requires a link back to HolidayKit. For high-volume "
+        'or paid usage, see <a href="../support/index.html">Support</a>.</li>'
         "</ul></section>"
         '<section class="sec"><h2>Embed instead</h2>'
         f'<p><a href="{site_url}/embed/index.html">Use the one-line widget</a> if you just want a calendar '
