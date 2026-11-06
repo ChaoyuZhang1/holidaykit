@@ -2293,6 +2293,10 @@ SHARE_CSS = """
 .share-controls select{padding:7px 10px;border:1px solid var(--line);border-radius:9px;background:var(--surface);font-size:.85rem;text-transform:none;letter-spacing:0}
 .share-btns{display:flex;gap:8px;flex-wrap:wrap}
 .share-btns .btn{padding:9px 16px;font-size:.85rem}
+.share-platforms{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.share-plat{border:1px solid var(--line);background:var(--surface);color:var(--ink-soft);border-radius:999px;padding:7px 14px;font-size:.8rem;cursor:pointer;transition:all .18s}
+.share-plat:hover{border-color:var(--ink);transform:translateY(-1px)}
+.share-hint{font-size:.72rem;color:var(--muted);margin:10px 0 0;line-height:1.5}
 """
 
 
@@ -2441,7 +2445,9 @@ SHARE_JS = r"""
       '</div>'+
       '<div class="share-btns"><button type="button" class="btn" data-share-dl>Download PNG</button>'+
       '<button type="button" class="btn ghost" data-share-native>Share</button>'+
-      '<button type="button" class="btn ghost" data-share-copy>Copy image</button></div></div>';
+      '<button type="button" class="btn ghost" data-share-copy>Copy image</button></div>'+
+      '<div class="share-platforms" data-share-platforms></div>'+
+      '<p class="share-hint">Shortcuts open the platform composer with text + link. For apps that only accept images (WeChat Moments, Xiaohongshu, Douyin, Instagram) tap "Download PNG" first, then post the image there.</p></div>';
     document.body.appendChild(wrap); modal=wrap;
     canvas=wrap.querySelector('.share-canvas');
     wrap.querySelector('.share-close').addEventListener('click',function(){ wrap.classList.remove('on'); });
@@ -2454,11 +2460,72 @@ SHARE_JS = r"""
     wrap.querySelector('[data-share-copy]').addEventListener('click',function(){ copy(); });
     return wrap;
   }
+  var CP={CN:['wechat','weibo','xhs','douyin'],TW:['line','facebook','whatsapp'],HK:['whatsapp','wechat','facebook'],
+    JP:['line','x','facebook'],KR:['kakao','facebook','x'],US:['x','facebook','reddit','linkedin'],
+    GB:['x','facebook','whatsapp','linkedin'],CA:['x','facebook','whatsapp'],AU:['facebook','x','whatsapp'],
+    IN:['whatsapp','x','telegram','linkedin'],SG:['whatsapp','telegram','facebook'],MY:['whatsapp','facebook','telegram'],
+    TH:['line','facebook','x'],VN:['facebook','zalo'],ID:['whatsapp','facebook','instagram'],PH:['facebook','whatsapp'],
+    DE:['whatsapp','facebook','x'],FR:['whatsapp','facebook','x'],ES:['whatsapp','facebook','x'],IT:['whatsapp','facebook','x'],
+    NL:['whatsapp','facebook','x'],PL:['facebook','x','whatsapp'],RU:['vk','telegram','whatsapp'],
+    BR:['whatsapp','instagram','facebook'],MX:['whatsapp','facebook','x'],AR:['whatsapp','facebook','x'],
+    ZA:['whatsapp','facebook','x'],AE:['whatsapp','telegram','x'],SA:['whatsapp','x','telegram'],
+    TR:['whatsapp','x','telegram'],IL:['whatsapp','facebook','telegram'],EG:['whatsapp','facebook','x'],
+    NG:['whatsapp','facebook','x'],KE:['whatsapp','facebook','x'],NZ:['facebook','x','whatsapp'],
+    SE:['facebook','whatsapp','x'],NO:['facebook','whatsapp'],DK:['facebook','whatsapp'],FI:['whatsapp','facebook','x'],
+    CH:['whatsapp','facebook','x'],AT:['whatsapp','facebook','x'],PT:['whatsapp','facebook','x'],GR:['facebook','whatsapp','x']};
+  var PN={x:'X',facebook:'Facebook',whatsapp:'WhatsApp',telegram:'Telegram',line:'LINE',weibo:'微博',
+    wechat:'微信',xhs:'小红书',douyin:'抖音',kakao:'KakaoTalk',vk:'VK',reddit:'Reddit',linkedin:'LinkedIn',
+    instagram:'Instagram',zalo:'Zalo'};
+  function platformHref(id,cap,url){
+    var u=encodeURIComponent(url), t=encodeURIComponent(cap);
+    if(id==='x')return 'https://twitter.com/intent/tweet?text='+t+'&url='+u;
+    if(id==='facebook')return 'https://www.facebook.com/sharer/sharer.php?u='+u;
+    if(id==='linkedin')return 'https://www.linkedin.com/sharing/share-offsite/?url='+u;
+    if(id==='reddit')return 'https://www.reddit.com/submit?url='+u+'&title='+t;
+    if(id==='whatsapp')return 'https://wa.me/?text='+encodeURIComponent(cap+' '+url);
+    if(id==='telegram')return 'https://t.me/share/url?url='+u+'&text='+t;
+    if(id==='line')return 'https://social-plugins.line.me/lineit/share?url='+u;
+    if(id==='weibo')return 'https://service.weibo.com/share/share.php?url='+u+'&title='+t;
+    if(id==='kakao')return 'https://story.kakao.com/share?url='+u;
+    if(id==='vk')return 'https://vk.com/share.php?url='+u;
+    if(id==='zalo')return 'https://zalo.me/share?u='+u;
+    return '';
+  }
+  function caption(){
+    return 'HolidayKit · '+D.country+' '+D.year+' holidays — '+D.url;
+  }
+  function renderPlatforms(){
+    if(!modal) return;
+    var box=modal.querySelector('[data-share-platforms]'); if(!box) return;
+    var cc=(window.HK_COUNTRY||'').toUpperCase();
+    var ids=CP[cc]||['x','facebook','whatsapp','telegram','linkedin'];
+    box.innerHTML='';
+    ids.forEach(function(id){
+      var b=document.createElement('button'); b.type='button'; b.className='share-plat';
+      b.textContent=PN[id]||id;
+      b.addEventListener('click',function(){
+        var h=platformHref(id,caption(),D.url);
+        if(h){ window.open(h,'_blank','noopener'); }
+        else { try{navigator.clipboard.writeText(caption());}catch(e){} dl();
+          alert(PN[id]+' 不支持网页直接带图发布：图片已下载、文案已复制，请打开 App 发布。'); }
+      });
+      box.appendChild(b);
+    });
+  }
+  function detectCountry(){
+    if(window.HK_COUNTRY) return;
+    fetch('/geo').then(function(r){return r.ok?r.json():null;}).then(function(d){
+      window.HK_COUNTRY=((d&&d.country)||'').toUpperCase(); renderPlatforms();
+    }).catch(function(){
+      try{ var n=(navigator.language||'').split('-')[1]; if(n) window.HK_COUNTRY=n.toUpperCase(); }catch(e){}
+      renderPlatforms();
+    });
+  }
   function toBlob(cb){ canvas.toBlob(function(b){ cb(b); },'image/png'); }
   function dl(){ toBlob(function(b){ var a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download='holidaykit-'+D.slug+'-'+D.year+'.png'; document.body.appendChild(a); a.click(); setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); },800); }); }
   function nativeShare(){ toBlob(function(b){ var f=new File([b],'holidaykit.png',{type:'image/png'}); if(navigator.canShare&&navigator.canShare({files:[f]})){ navigator.share({files:[f],title:'HolidayKit',text:D.country+' '+D.year+' holidays'}).catch(function(){}); } else { dl(); } }); }
   function copy(){ toBlob(function(b){ if(navigator.clipboard&&window.ClipboardItem){ navigator.clipboard.write([new ClipboardItem({'image/png':b})]).then(function(){ alert('Copied image / 图片已复制'); },function(){ dl(); }); } else { dl(); } }); }
-  function open(){ ensure().classList.add('on'); draw(); }
+  function open(){ ensure().classList.add('on'); draw(); detectCountry(); renderPlatforms(); }
   qrImg=new Image();
   qrImg.onload=function(){ st.qr=qrImg; if(modal) draw(); };
   qrImg.src=D.qr;
