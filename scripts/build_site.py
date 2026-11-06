@@ -900,8 +900,19 @@ MOTION_JS = r"""
     }, { threshold: 0.4 });
     for (var j = 0; j < nums.length; j++) io2.observe(nums[j]);
   }
-  var copyBtns = document.querySelectorAll('[data-copy]');
-  for (var c = 0; c < copyBtns.length; c++) {
+  var ua = navigator.userAgent || '';
+  var isIOS = /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && /Safari/.test(ua));
+  var isAndroid = /Android/i.test(ua);
+  document.body.className += (isAndroid ? ' is-android' : (isIOS ? ' is-ios' : ' is-desktop'));
+  var subDetails = document.querySelectorAll('.sub-help details');
+  for (var sd = 0; sd < subDetails.length; sd++) {
+    var sm = subDetails[sd].querySelector('summary');
+    var smText = sm ? sm.textContent : '';
+    var match = (isAndroid && smText.indexOf('Android') >= 0) ||
+                (isIOS && (smText.indexOf('iPhone') >= 0 || smText.indexOf('Mac') >= 0));
+    subDetails[sd].open = match || (!isAndroid && !isIOS && sd === 0);
+  }
+  var copyBtns = document.querySelectorAll('[data-copy]');  for (var c = 0; c < copyBtns.length; c++) {
     (function(btn){
       btn.addEventListener('click', function(){
         var text = btn.getAttribute('data-copy');
@@ -1977,24 +1988,30 @@ def subscribe_block(cc: str, name: str, slug: str, year: int, site_url: str) -> 
         '<p class="sub">One URL — auto-updating calendar. No file import needed (works with iOS, macOS, '
         "Google Calendar and Outlook).</p>"
         '<div class="sub-actions">'
-        f'<a class="btn" href="{wc}">📱 Subscribe on iPhone / Mac</a>'
+        f'<a class="btn" href="{wc}">📱 iOS / macOS — one-tap subscribe</a>'
         f'<a class="btn ghost" href="{google_cal_url(ics)}" target="_blank" rel="noopener">'
-        "Add to Google Calendar</a>"
+        "Google Calendar (auto-sync)</a>"
+        '<a class="btn ghost" href="https://calendar.google.com/calendar/r/settings/addbyurl" '
+        'target="_blank" rel="noopener">Android — Add by URL</a>'
         f'<a class="btn ghost" href="{outlook_cal_url(ics)}" target="_blank" rel="noopener">'
         "Add to Outlook</a>"
         f'<button type="button" class="btn ghost" data-copy="{ics}">Copy .ics link</button>'
         "</div>"
         '<div class="sub-help">'
         "<details open><summary>iPhone / iPad / Mac — subscribe (auto-updates)</summary><ol>"
-        "<li>Tap the <strong>Subscribe on iPhone / Mac</strong> button above (this site uses a "
+        "<li>Tap the <strong>iOS / macOS — one-tap subscribe</strong> button above (this site uses a "
         "<code>webcal://</code> link).</li>"
         "<li>Calendar opens → tap <strong>Subscribe</strong>.</li>"
         "<li>If the button does nothing: Settings → Calendar → Accounts → Add Account → Other → "
         "<strong>Add Subscribed Calendar</strong>, paste the .ics URL below.</li>"
         "<li>Subscribed calendars update automatically — no need to re-import.</li></ol></details>"
-        "<details><summary>Android (Google Calendar)</summary><ol>"
-        "<li>Open Google Calendar → Other calendars → “+” → <strong>From URL</strong>.</li>"
-        f"<li>Paste <code>{ics}</code> → Add calendar.</li></ol></details>"
+        "<details><summary>Android — Google Calendar can't open webcal links; use one of these</summary><ol>"
+        "<li>Browser → <a href=\"https://calendar.google.com/calendar/r/settings/addbyurl\" target=\"_blank\" "
+        'rel="noopener">Google Calendar → Settings → Add calendar → From URL</a> → paste the .ics URL.</li>'
+        "<li>Or install <strong>ICSx5</strong> (open-source) → Add calendar → paste the .ics URL; "
+        "it syncs subscriptions into the Android system calendar automatically.</li>"
+        "<li>Samsung Calendar: Settings → Add calendar → <strong>Subscribe</strong> → paste URL.</li>"
+        "<li>Google Calendar mobile app has no “From URL” entry — use the browser step above.</li></ol></details>"
         "<details><summary>Outlook / Windows</summary><ol>"
         "<li>Outlook → Calendar → Add calendar → <strong>Subscribe from web</strong>.</li>"
         f"<li>Paste <code>{ics}</code> → Import.</li></ol></details>"
