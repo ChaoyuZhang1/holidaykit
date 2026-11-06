@@ -400,8 +400,13 @@ tbody tr:hover{background:#fcfbf8}
   .lang-select{margin-left:auto}
   body{padding-bottom:76px}
   .site-foot{padding-bottom:110px}
+  .hero-inner{grid-template-columns:1fr;gap:24px}
+  .hero-cal{width:100%;max-width:100%;min-width:0}
+  .stats{flex-wrap:wrap}
+  .hero-cal .cal-single,.cal-single{min-width:0;width:100%}
 }
 @media(max-width:600px){
+  .hero-inner{gap:18px}
   .hero h1,.hero-country h1{font-size:clamp(1.55rem,6.4vw,2.1rem)}
   .hero .lede,.hero-country .lede{font-size:.98rem}
   .hero-cal{padding:14px}
@@ -926,7 +931,9 @@ MOTION_JS = r"""
       entries.forEach(function(en){
         if (!en.isIntersecting) return;
         var el = en.target; io2.unobserve(el);
-        var txt = el.textContent.trim().replace(/,/g, '');
+        var raw = el.textContent.trim();
+        if (!/^[0-9][0-9,]*$/.test(raw)) return;
+        var txt = raw.replace(/,/g, '');
         var n = parseInt(txt, 10);
         if (isNaN(n) || n > 1000000) return;
         var t0 = performance.now();
@@ -1791,11 +1798,24 @@ def page_index(countries: list[tuple[str, str, str]], by_country, site_url: str,
     for cc, name, slug in countries:
         years = sorted(by_country[cc].keys(), reverse=True)
         count = sum(len(by_country[cc][y]) for y in years)
+        fy = pick_focus_year(by_country[cc].keys(), today or date.today())
+        fy_rows = by_country[cc].get(fy) or []
+        mon = [0] * 12
+        for _r in fy_rows:
+            try:
+                mon[date.fromisoformat(_r["date"]).month - 1] += 1
+            except (KeyError, ValueError):
+                continue
+        _mx = max(mon) or 1
+        spark = "".join(f'<i style="height:{max(6, v / _mx * 100):.0f}%"></i>' for v in mon)
+        _yr = f"{years[-1]}–{years[0]}" if len(years) > 1 else str(years[0])
         cards.append(
             f'<a class="card" href="{slug}/index.html">'
             f'<div class="flag">{flag_emoji(cc)}</div>'
             f"<h3>{esc(name)}</h3>"
-            f'<p>{count} public holidays · {", ".join(str(y) for y in years[:3])}</p>'
+            f'<p>{len(fy_rows)} public holidays in {fy}</p>'
+            f'<span class="spark" aria-hidden="true">{spark}</span>'
+            f'<p class="card-note">{count} holidays · {_yr}</p>'
             "</a>"
         )
     total_holidays = sum(sum(len(by_country[cc][y]) for y in by_country[cc]) for cc, _, _ in countries)
@@ -2439,6 +2459,13 @@ SHARE_CSS = """
 .donut-txt{display:flex;flex-direction:column;gap:6px}
 .donut-txt .big{font-family:Georgia,serif;font-size:1.9rem;line-height:1}
 .donut-txt .muted{font-size:.78rem}
+/* country card sparkline + countdown progress */
+.spark{display:flex;align-items:flex-end;gap:2px;height:26px;margin:8px 0 2px}
+.spark i{flex:1;min-height:2px;border-radius:2px 2px 1px 1px;background:linear-gradient(180deg,#34d399,#0ea5e9);transform-origin:bottom;animation:vzGrow .8s cubic-bezier(.2,.75,.25,1) both}
+.card-note{font-size:.72rem;color:var(--muted);margin:2px 0 6px}
+.prog{display:block;height:6px;border-radius:999px;background:rgba(15,23,42,.09);overflow:hidden;margin-top:10px}
+.prog i{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,#34d399,#22d3ee);transform-origin:left;animation:vzGrowX .9s cubic-bezier(.2,.75,.25,1) both}
+@media (prefers-reduced-motion:reduce){.spark i,.prog i{animation:none}}
 """
 
 
@@ -3179,14 +3206,30 @@ def page_holiday(kind: str, slug: str, name: str, rows: list[dict], site_url: st
     )
 
 
-def holiday_index_page(kind: str, items: list[tuple[str, str]], site_url: str, verified: str) -> str:
+def holiday_index_page(kind: str, items: list[tuple[str, str]], site_url: str, verified: str,
+                       meta: dict | None = None) -> str:
     path = "holidays" if kind == "holiday" else "days-until"
     heading = "Holiday guides" if kind == "holiday" else "Holiday countdowns"
-    cards = "".join(
-        f'<a class="card" href="{slug}/index.html"><h3>{esc(name)}</h3>'
-        "<p>Dates by country · calendar links</p></a>"
-        for slug, name in items
-    )
+    meta = meta or {}
+
+    def _card(slug: str, name: str) -> str:
+        m = meta.get(name) or {}
+        countries = m.get("countries")
+        days = m.get("days")
+        if kind == "countdown" and days is not None:
+            pct = max(3, min(100, round(100 - days / 365 * 100)))
+            soon = f"in {days} day{'s' if days != 1 else ''}" if days >= 0 else "today"
+            return (
+                f'<a class="card" href="{slug}/index.html"><h3>{esc(name)}</h3>'
+                f'<p>{countries} countries · next {soon}</p>'
+                f'<span class="prog" aria-hidden="true"><i style="width:{pct}%"></i></span></a>'
+            )
+        return (
+            f'<a class="card" href="{slug}/index.html"><h3>{esc(name)}</h3>'
+            f"<p>{countries or 0} countries · dates by year · calendar links</p></a>"
+        )
+
+    cards = "".join(_card(slug, name) for slug, name in items)
     body = (
         f'<section class="hero"><h1>{esc(heading)}</h1>'
         '<p class="lede">Pick a holiday to see its dates across countries, a live countdown '
@@ -3634,13 +3677,21 @@ def main() -> int:
         )
         urls.append((f"days-until/{hslug}/", "0.6"))
 
+    meta_count = {}
+    for _hslug, _hname in top_items:
+        _rows = catalog[_hname]
+        _ccs = {r["country"] for r in _rows}
+        _fut = sorted(r["date"] for r in _rows if r["date"] >= today.isoformat())
+        _d = (date.fromisoformat(_fut[0]) - today).days if _fut else None
+        meta_count[_hname] = {"countries": len(_ccs), "days": _d}
+
     (out / "holidays").mkdir(exist_ok=True)
     (out / "holidays" / "index.html").write_text(
-        holiday_index_page("holiday", top_items, site_url, verified), encoding="utf-8")
+        holiday_index_page("holiday", top_items, site_url, verified, meta_count), encoding="utf-8")
     urls.append(("holidays/", "0.7"))
     (out / "days-until").mkdir(exist_ok=True)
     (out / "days-until" / "index.html").write_text(
-        holiday_index_page("countdown", top_items, site_url, verified), encoding="utf-8")
+        holiday_index_page("countdown", top_items, site_url, verified, meta_count), encoding="utf-8")
     urls.append(("days-until/", "0.7"))
 
     # ── school holidays ──
