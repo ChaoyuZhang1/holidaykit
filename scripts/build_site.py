@@ -28,6 +28,7 @@ import shutil
 from collections import defaultdict
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
+from urllib.parse import quote
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -432,6 +433,14 @@ tbody tr:hover{background:#faf7f0}
 nav a{position:relative}
 ::selection{background:rgba(15,107,92,.18)}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}html{scroll-behavior:auto}}
+.sub-actions{display:flex;gap:10px;flex-wrap:wrap;margin:16px 0 18px}
+.sub-actions .btn{font-size:.88rem}
+.sub-help{display:grid;gap:8px;margin:10px 0 14px}
+.sub-help details{border:1px solid var(--line);border-radius:12px;background:var(--surface);padding:10px 14px}
+.sub-help summary{cursor:pointer;font-weight:600;font-size:.9rem}
+.sub-help ol{margin:8px 0 2px 18px;padding:0;color:var(--ink-soft);font-size:.88rem}
+.sub-help li{margin:4px 0}
+.sub-help code{background:var(--soft);padding:1px 6px;border-radius:6px;font-size:.82rem;word-break:break-all}
 """
 
 JS = """
@@ -890,6 +899,23 @@ MOTION_JS = r"""
       });
     }, { threshold: 0.4 });
     for (var j = 0; j < nums.length; j++) io2.observe(nums[j]);
+  }
+  var copyBtns = document.querySelectorAll('[data-copy]');
+  for (var c = 0; c < copyBtns.length; c++) {
+    (function(btn){
+      btn.addEventListener('click', function(){
+        var text = btn.getAttribute('data-copy');
+        function done(){ btn.textContent = 'Copied!'; setTimeout(function(){ btn.textContent = 'Copy .ics link'; }, 1600); }
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(text).then(done, function(){});
+        } else {
+          var ta = document.createElement('textarea');
+          ta.value = text; document.body.appendChild(ta); ta.select();
+          try { document.execCommand('copy'); } catch (e) {}
+          ta.parentNode.removeChild(ta); done();
+        }
+      });
+    })(copyBtns[c]);
   }
 })();
 """
@@ -1775,6 +1801,7 @@ def page_country(cc: str, name: str, slug: str, by_country, site_url: str, verif
     ]
     if cc == "CN":
         body += cn_summary_html(latest)
+    body += subscribe_block(cc, name, slug, latest, site_url)
     body += official_source_html(cc)
     body += affiliate_block(name)
     body += embed_block(cc, latest)
@@ -1813,9 +1840,7 @@ def page_year(cc: str, name: str, slug: str, year: int, rows: list[dict], runs: 
         + f'<p><a class="btn ghost" href="long-weekends/index.html">Full {year} long weekend guide</a></p>'
         "</section>"
         + (cn_summary_html(year) if cc == "CN" else "")
-        + '<section class="sec" id="calendar"><h2>Subscribe</h2>'
-        f'<p><a class="btn" href="../calendar-{year}.ics">Add {esc(name)} {year} to my calendar</a></p>'
-        "</section>"
+        + subscribe_block(cc, name, slug, year, site_url)
         + affiliate_block(name)
         + f'<p><a href="../index.html">← {esc(name)} overview</a></p>'
     )
@@ -1930,6 +1955,54 @@ def page_static(slug: str, title: str, body_html: str, site_url: str, verified: 
 
 
 # ── school holidays & country comparison ───────────────────────────────────
+
+def webcal_url(https_url: str) -> str:
+    return https_url.replace("https://", "webcal://", 1)
+
+
+def google_cal_url(ics_url: str) -> str:
+    return "https://calendar.google.com/calendar/r?cid=" + quote(webcal_url(ics_url), safe="")
+
+
+def outlook_cal_url(ics_url: str) -> str:
+    return "https://outlook.live.com/calendar/0/addfromweb?url=" + quote(ics_url, safe="")
+
+
+def subscribe_block(cc: str, name: str, slug: str, year: int, site_url: str) -> str:
+    ics = f"{site_url}/{slug}/calendar-{year}.ics"
+    wc = webcal_url(ics)
+    return (
+        '<section class="sec" id="subscribe"><h2>Subscribe to '
+        + esc(name) + " " + str(year) + "</h2>"
+        '<p class="sub">One URL — auto-updating calendar. No file import needed (works with iOS, macOS, '
+        "Google Calendar and Outlook).</p>"
+        '<div class="sub-actions">'
+        f'<a class="btn" href="{wc}">📱 Subscribe on iPhone / Mac</a>'
+        f'<a class="btn ghost" href="{google_cal_url(ics)}" target="_blank" rel="noopener">'
+        "Add to Google Calendar</a>"
+        f'<a class="btn ghost" href="{outlook_cal_url(ics)}" target="_blank" rel="noopener">'
+        "Add to Outlook</a>"
+        f'<button type="button" class="btn ghost" data-copy="{ics}">Copy .ics link</button>'
+        "</div>"
+        '<div class="sub-help">'
+        "<details open><summary>iPhone / iPad / Mac — subscribe (auto-updates)</summary><ol>"
+        "<li>Tap the <strong>Subscribe on iPhone / Mac</strong> button above (this site uses a "
+        "<code>webcal://</code> link).</li>"
+        "<li>Calendar opens → tap <strong>Subscribe</strong>.</li>"
+        "<li>If the button does nothing: Settings → Calendar → Accounts → Add Account → Other → "
+        "<strong>Add Subscribed Calendar</strong>, paste the .ics URL below.</li>"
+        "<li>Subscribed calendars update automatically — no need to re-import.</li></ol></details>"
+        "<details><summary>Android (Google Calendar)</summary><ol>"
+        "<li>Open Google Calendar → Other calendars → “+” → <strong>From URL</strong>.</li>"
+        f"<li>Paste <code>{ics}</code> → Add calendar.</li></ol></details>"
+        "<details><summary>Outlook / Windows</summary><ol>"
+        "<li>Outlook → Calendar → Add calendar → <strong>Subscribe from web</strong>.</li>"
+        f"<li>Paste <code>{ics}</code> → Import.</li></ol></details>"
+        "</div>"
+        '<p class="muted">Direct .ics link (HTTPS): <code>' + ics + "</code></p>"
+        "</section>"
+    )
+
 
 def load_school(path: Path) -> tuple[dict, dict]:
     try:
@@ -2693,6 +2766,55 @@ def main() -> int:
             encoding="utf-8",
         )
         urls.append((f"{lang}/", "0.8"))
+
+    # subscribe hub: one URL per country, iOS/macOS/Google/Outlook
+    sub_rows = []
+    for cc, name, slug in countries:
+        y = today.year if today.year in by_country[cc] else max(by_country[cc])
+        ics = f"{site_url}/{slug}/calendar-{y}.ics"
+        sub_rows.append(
+            f'<tr><td><a href="{slug}/index.html">{esc(name)}</a></td><td>{y}</td>'
+            f'<td><a href="{webcal_url(ics)}">📱 Subscribe</a> · '
+            f'<a href="{ics}">.ics</a> · '
+            f'<a href="{google_cal_url(ics)}" target="_blank" rel="noopener">Google</a> · '
+            f'<a href="{outlook_cal_url(ics)}" target="_blank" rel="noopener">Outlook</a></td></tr>'
+        )
+    sub_body = (
+        '<section class="hero"><p class="eyebrow">Calendar subscriptions</p>'
+        "<h1>Subscribe to any country's holidays</h1>"
+        '<p class="lede">One URL, auto-updating — no .ics file import. iPhone, iPad, Mac, Android, '
+        "Google Calendar and Outlook all support URL subscriptions.</p></section>"
+        '<section class="sec"><h2>How it works</h2><div class="sub-help">'
+        "<details open><summary>iPhone / iPad / Mac — subscribe (auto-updates)</summary><ol>"
+        "<li>Tap a <strong>Subscribe</strong> link below → Calendar opens → tap <strong>Subscribe</strong>.</li>"
+        "<li>Or: Settings → Calendar → Accounts → Add Account → Other → "
+        "<strong>Add Subscribed Calendar</strong>, then paste the .ics URL.</li>"
+        "<li>Subscribed calendars refresh automatically; you never re-import.</li></ol></details>"
+        "<details><summary>Android (Google Calendar)</summary><ol>"
+        "<li>Google Calendar → Other calendars → “+” → <strong>From URL</strong>.</li>"
+        "<li>Paste the .ics URL → Add calendar.</li></ol></details>"
+        "<details><summary>Outlook / Windows</summary><ol>"
+        "<li>Outlook → Calendar → Add calendar → <strong>Subscribe from web</strong>.</li>"
+        "<li>Paste the .ics URL → Import.</li></ol></details>"
+        "</div></section>"
+        '<section class="sec"><h2>All countries</h2><div class="tbl-wrap"><table><thead><tr>'
+        "<th>Country</th><th>Year</th><th>Subscribe</th></tr></thead><tbody>"
+        + "".join(sub_rows) + "</tbody></table></div></section>"
+    )
+    (out / "subscribe").mkdir(exist_ok=True)
+    (out / "subscribe" / "index.html").write_text(
+        render_page(
+            title="Subscribe to holiday calendars — one URL, auto-updating",
+            description="Subscribe to any country's public holiday calendar by URL. Works with iPhone, "
+                        "iPad, Mac, Android, Google Calendar and Outlook — no .ics import needed.",
+            canonical=f"{site_url}/subscribe/",
+            base="../",
+            body=sub_body,
+            verified=verified,
+        ),
+        encoding="utf-8",
+    )
+    urls.append(("subscribe/", "0.7"))
 
     for cc, name, slug in countries:
         years = sorted(by_country[cc].keys(), reverse=True)
