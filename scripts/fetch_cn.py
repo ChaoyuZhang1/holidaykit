@@ -21,7 +21,7 @@ from __future__ import annotations
 import json
 import shutil
 import subprocess
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -81,21 +81,39 @@ def parse_ics(text: str) -> dict:
         if line == "END:VEVENT":
             if current:
                 start = current.get("start")
+                end = current.get("end") or ""
                 summary = current.get("summary", "")
                 if start and len(start) == 8:
-                    year = int(start[:4])
-                    day = f"{start[:4]}-{start[4:6]}-{start[6:8]}"
-                    bucket = "work" if "班" in summary else ("rest" if "休" in summary else "")
-                    if bucket:
-                        years.setdefault(str(year), {"rest": [], "work": []})[bucket].append(
-                            {"date": day, "name": clean_name(summary)}
-                        )
+                    try:
+                        first = date(int(start[:4]), int(start[4:6]), int(start[6:8]))
+                    except ValueError:
+                        first = None
+                    if first:
+                        if len(end) == 8:
+                            try:
+                                last = date(int(end[:4]), int(end[4:6]), int(end[6:8]))
+                            except ValueError:
+                                last = first + timedelta(days=1)
+                        else:
+                            last = first + timedelta(days=1)
+                        if last <= first:
+                            last = first + timedelta(days=1)
+                        bucket = "work" if "班" in summary else ("rest" if "休" in summary else "")
+                        if bucket:
+                            day = first
+                            while day < last:
+                                years.setdefault(str(day.year), {"rest": [], "work": []})[bucket].append(
+                                    {"date": day.isoformat(), "name": clean_name(summary)}
+                                )
+                                day += timedelta(days=1)
             current = None
             continue
         if current is None:
             continue
         if line.startswith("DTSTART"):
             current["start"] = line.rsplit(":", 1)[-1].strip()[:8]
+        elif line.startswith("DTEND"):
+            current["end"] = line.rsplit(":", 1)[-1].strip()[:8]
         elif line.startswith("SUMMARY"):
             current["summary"] = line.split(":", 1)[-1].strip()
     for year_data in years.values():
