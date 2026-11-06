@@ -1224,14 +1224,15 @@ def footer_html(base: str, verified: str) -> str:
 def render_page(*, title: str, description: str, canonical: str, base: str,
                 body: str, verified: str, json_ld: str = "",
                 cta_href: str = "", cta_label: str = "Browse countries",
-                extra_js: str = "", lang_code: str = "en", alternates: str = "") -> str:
+                extra_js: str = "", lang_code: str = "en", alternates: str = "",
+                robots: str = "index,follow") -> str:
     head = (
         f'<!doctype html><html lang="{esc(lang_code)}"><head><meta charset="utf-8">'
         '<meta name="viewport" content="width=device-width,initial-scale=1">'
         f"<title>{esc(title)}</title>"
         f'<meta name="description" content="{esc(description)}">'
         f'<link rel="canonical" href="{esc(canonical)}">'
-        '<meta name="robots" content="index,follow">'
+        '<meta name="robots" content="' + esc(robots) + '">'
         f'<meta property="og:site_name" content="{SITE_NAME}">'
         f'<meta property="og:title" content="{esc(title)}">'
         f'<meta property="og:description" content="{esc(description)}">'
@@ -2058,6 +2059,56 @@ def outlook_cal_url(ics_url: str) -> str:
     return "https://outlook.live.com/calendar/0/addfromweb?url=" + quote(ics_url, safe="")
 
 
+def go_page(cc: str, name: str, slug: str, year: int, site_url: str, verified: str) -> str:
+    ics = f"{site_url}/{slug}/calendar-{year}.ics"
+    wc = webcal_url(ics)
+    body = (
+        '<section class="hero"><p class="eyebrow">Android setup · '
+        + esc(name) + " " + str(year) + "</p>"
+        f"<h1>Subscribe to {esc(name)} holidays</h1>"
+        '<p class="lede">We are copying the calendar link to your clipboard. Paste it into '
+        "Google Calendar (Add by URL) or a subscription app — it updates automatically.</p></section>"
+        '<div class="callout" data-go-status>Preparing your subscription link…</div>'
+        '<div class="sub-actions">'
+        '<a class="btn" href="https://calendar.google.com/calendar/r/settings/addbyurl" '
+        'target="_blank" rel="noopener">Open Google Calendar → Add by URL</a>'
+        f'<button type="button" class="btn ghost" data-copy="{ics}">Copy link</button>'
+        f'<a class="btn ghost" href="{ics}">Download .ics</a>'
+        f'<a class="btn ghost" href="/{slug}/{year}/index.html">Back to {esc(name)} {year}</a>'
+        "</div>"
+        '<section class="sec"><h2>2 steps</h2><div class="sub-help">'
+        "<details open><summary>Google Calendar (Android browser or desktop)</summary><ol>"
+        "<li>The .ics link is already copied (if not, tap <strong>Copy link</strong>).</li>"
+        "<li>Open Google Calendar → Settings → <strong>Add calendar → From URL</strong> → "
+        "paste the link → Add calendar.</li></ol></details>"
+        "<details><summary>ICSx5 (Android app — syncs into the system calendar)</summary><ol>"
+        "<li>Install ICSx5 → Add calendar → paste the copied link.</li></ol></details>"
+        "<details><summary>iPhone / Mac</summary><ol>"
+        f'<li><a href="{wc}">Subscribe with Apple Calendar</a> (webcal link, auto-updates).</li>'
+        "</ol></details>"
+        "</div></section>"
+        f'<p class="muted">Calendar link: <code>{ics}</code></p>'
+        "<script>(function(){var t=" + json.dumps(ics) + ";"
+        "function ok(){var s=document.querySelector('[data-go-status]');"
+        "if(s){s.textContent='✓ Link copied — now paste it into Google Calendar (Add calendar → From URL).';}}"
+        "function copy(){if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(t).then(ok,ok);}"
+        "else{var a=document.createElement('textarea');a.value=t;document.body.appendChild(a);a.select();"
+        "try{document.execCommand('copy');}catch(e){}a.parentNode.removeChild(a);ok();}}"
+        "copy();document.querySelectorAll('[data-copy]').forEach(function(b){b.addEventListener('click',copy);});"
+        "})();</script>"
+    )
+    return render_page(
+        title=f"Subscribe to {name} {year} holidays — Android one-tap setup",
+        description=f"One-tap guided setup to subscribe to {name} {year} public holidays on Android, "
+                    f"Google Calendar or Apple Calendar.",
+        canonical=f"{site_url}/go/{slug}/",
+        base="../../",
+        body=body,
+        verified=verified,
+        robots="noindex,follow",
+    )
+
+
 def subscribe_block(cc: str, name: str, slug: str, year: int, site_url: str) -> str:
     ics = f"{site_url}/{slug}/calendar-{year}.ics"
     wc = webcal_url(ics)
@@ -2070,8 +2121,7 @@ def subscribe_block(cc: str, name: str, slug: str, year: int, site_url: str) -> 
         f'<a class="btn" href="{wc}">📱 iOS / macOS — one-tap subscribe</a>'
         f'<a class="btn ghost" href="{google_cal_url(ics)}" target="_blank" rel="noopener">'
         "Google Calendar (auto-sync)</a>"
-        '<a class="btn ghost" href="https://calendar.google.com/calendar/r/settings/addbyurl" '
-        'target="_blank" rel="noopener">Android — Add by URL</a>'
+        f'<a class="btn ghost" href="/go/{slug}/">Android — one-tap setup</a>'
         f'<a class="btn ghost" href="{outlook_cal_url(ics)}" target="_blank" rel="noopener">'
         "Add to Outlook</a>"
         f'<button type="button" class="btn ghost" data-copy="{ics}">Copy .ics link</button>'
@@ -2085,8 +2135,10 @@ def subscribe_block(cc: str, name: str, slug: str, year: int, site_url: str) -> 
         "<strong>Add Subscribed Calendar</strong>, paste the .ics URL below.</li>"
         "<li>Subscribed calendars update automatically — no need to re-import.</li></ol></details>"
         "<details><summary>Android — Google Calendar can't open webcal links; use one of these</summary><ol>"
-        "<li>Browser → <a href=\"https://calendar.google.com/calendar/r/settings/addbyurl\" target=\"_blank\" "
-        'rel="noopener">Google Calendar → Settings → Add calendar → From URL</a> → paste the .ics URL.</li>'
+        "<li>Easiest: open <a href=\"/go/\"><strong>Android one-tap setup</strong></a> — it copies the link "
+        "and opens Google Calendar's “Add by URL”.</li>"
+        "<li>Or browser → <a href=\"https://calendar.google.com/calendar/r/settings/addbyurl\" target=\"_blank\" "
+        'rel="noopener">Google Calendar → Add calendar → From URL</a> → paste the .ics URL.</li>'
         "<li>Or install <strong>ICSx5</strong> (open-source) → Add calendar → paste the .ics URL; "
         "it syncs subscriptions into the Android system calendar automatically.</li>"
         "<li>Samsung Calendar: Settings → Add calendar → <strong>Subscribe</strong> → paste URL.</li>"
@@ -2911,6 +2963,47 @@ def main() -> int:
         encoding="utf-8",
     )
     urls.append(("subscribe/", "0.7"))
+
+    # Android one-tap setup pages (/go/{country}/) + hub
+    (out / "go").mkdir(exist_ok=True)
+    go_rows = []
+    for cc, name, slug in countries:
+        gyears = sorted(int(y) for y in by_country[cc].keys())
+        gyear = pick_focus_year(gyears, today)
+        gdir = out / "go" / slug
+        gdir.mkdir(exist_ok=True)
+        (gdir / "index.html").write_text(
+            go_page(cc, name, slug, gyear, site_url, verified), encoding="utf-8"
+        )
+        ics = f"{site_url}/{slug}/calendar-{gyear}.ics"
+        go_rows.append(
+            f'<tr><td><a href="{slug}/index.html">{esc(name)}</a></td><td>{gyear}</td>'
+            f'<td><a href="{slug}/index.html">📱 One-tap setup</a></td>'
+            f'<td><a href="{ics}">.ics</a></td></tr>'
+        )
+    go_body = (
+        '<section class="hero"><p class="eyebrow">Android subscriptions</p>'
+        "<h1>One-tap setup for Android</h1>"
+        '<p class="lede">Pick a country: we copy the calendar link and open Google Calendar’s '
+        "“Add by URL”, where you paste it once. After that the calendar updates automatically.</p></section>"
+        '<section class="sec"><h2>All countries</h2><div class="tbl-wrap"><table><thead><tr>'
+        "<th>Country</th><th>Year</th><th>Setup</th><th>Direct .ics</th></tr></thead><tbody>"
+        + "".join(go_rows) + "</tbody></table></div></section>"
+        '<div class="callout">Why not one tap like iOS? Android has no system handler for '
+        "<code>webcal://</code> links — so we copy the link and open Google Calendar for you.</div>"
+    )
+    (out / "go" / "index.html").write_text(
+        render_page(
+            title="Android one-tap calendar subscription setup",
+            description="Guided Android setup to subscribe to holiday calendars via Google Calendar From URL or ICSx5.",
+            canonical=f"{site_url}/go/",
+            base="../",
+            body=go_body,
+            verified=verified,
+            robots="noindex,follow",
+        ),
+        encoding="utf-8",
+    )
 
     for cc, name, slug in countries:
         years = sorted(by_country[cc].keys(), reverse=True)
