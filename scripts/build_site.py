@@ -940,6 +940,65 @@ MOTION_JS = r"""
     }, { threshold: 0.4 });
     for (var j = 0; j < nums.length; j++) io2.observe(nums[j]);
   }
+  // ── data-viz: count-up numbers, growing bars, comparison fills, animated donuts ──
+  (function(){
+    var vizIO = 'IntersectionObserver' in window ? new IntersectionObserver(function(entries){
+      entries.forEach(function(en){ if (en.isIntersecting) { en.target.classList.add('viz-in'); runViz(en.target); vizIO.unobserve(en.target); } });
+    }, { threshold: 0.18 }) : null;
+    function runViz(el){
+      if (el.hasAttribute('data-countup')) {
+        var target = parseFloat(el.getAttribute('data-countup')) || 0;
+        var dec = parseInt(el.getAttribute('data-dec') || '0', 10) || 0;
+        if (reduce) { el.textContent = target.toLocaleString(undefined, {minimumFractionDigits:dec, maximumFractionDigits:dec}); return; }
+        var t0 = performance.now();
+        function tick(t){
+          var p = Math.min(1, (t - t0) / 1100), e = 1 - Math.pow(1 - p, 3);
+          el.textContent = (target * e).toLocaleString(undefined, {minimumFractionDigits:dec, maximumFractionDigits:dec});
+          if (p < 1) requestAnimationFrame(tick);
+        }
+        requestAnimationFrame(tick);
+        return;
+      }
+      if (el.classList.contains('vz-bars')) {
+        var bars = el.querySelectorAll('.bz');
+        for (var i = 0; i < bars.length; i++) {
+          (function(bar, idx){
+            var h = parseFloat(bar.getAttribute('data-h')) || 0;
+            if (reduce) { bar.style.height = Math.max(h, 0) + '%'; return; }
+            setTimeout(function(){ bar.style.height = Math.max(h, 1) + '%'; }, idx * 45);
+          })(bars[i], i);
+        }
+        return;
+      }
+      if (el.classList.contains('vz-cmp')) {
+        var fills = el.querySelectorAll('.fill');
+        for (var f = 0; f < fills.length; f++) {
+          (function(fill, idx){
+            var w = parseFloat(fill.getAttribute('data-w')) || 0;
+            if (reduce) { fill.style.width = w + '%'; return; }
+            setTimeout(function(){ fill.style.width = Math.min(w, 100) + '%'; }, idx * 120);
+          })(fills[f], f);
+        }
+        return;
+      }
+      if (el.hasAttribute('data-donut')) {
+        var fg2 = el.querySelector('.fg');
+        if (!fg2) return;
+        var pct = Math.max(0, Math.min(1, parseFloat(el.getAttribute('data-donut')) || 0));
+        var r = parseFloat(fg2.getAttribute('r')) || 50;
+        var C = 2 * Math.PI * r;
+        fg2.style.strokeDasharray = C;
+        if (reduce) { fg2.style.strokeDashoffset = C * (1 - pct); return; }
+        fg2.style.strokeDashoffset = C;
+        setTimeout(function(){ fg2.style.strokeDashoffset = C * (1 - pct); }, 160);
+        return;
+      }
+    }
+    var pending = document.querySelectorAll('[data-countup], .vz-bars, .vz-cmp, [data-donut]');
+    for (var p = 0; p < pending.length; p++) {
+      if (vizIO) vizIO.observe(pending[p]); else runViz(pending[p]);
+    }
+  })();
   var ua = navigator.userAgent || '';
   var isIOS = /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && /Safari/.test(ua));
   var isAndroid = /Android/i.test(ua);
@@ -1870,6 +1929,8 @@ def page_country(cc: str, name: str, slug: str, by_country, site_url: str, verif
         f'<span class="chip">{len(runs)} long weekends in {latest}</span>'
         "</div>"
         '<div class="cta-row" style="margin-top:22px">'
+        '<button type="button" class="btn-share-hot" data-share-open>'
+        '<span aria-hidden="true">✨</span> 生成分享卡片 · Share card</button>'
         f'<a class="btn" href="calendar-{latest}.ics">Add {latest} to my calendar</a>'
         f'<a class="btn ghost" href="{latest}/long-weekends/index.html">See long weekends</a>'
         "</div></div>"
@@ -1940,13 +2001,54 @@ def page_year(cc: str, name: str, slug: str, year: int, rows: list[dict], runs: 
         + ";"
         + SHARE_JS
     )
+    monthly = [0] * 12
+    weekend_ct = 0
+    for r in rows:
+        try:
+            d = date.fromisoformat(r["date"])
+        except (KeyError, ValueError, TypeError):
+            continue
+        monthly[d.month - 1] += 1
+        if d.weekday() >= 5:
+            weekend_ct += 1
+    peak = max(monthly) or 1
+    month_labels = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+    bars_html = "".join(
+        f'<div class="bz" data-h="{round(c / peak * 100)}" style="height:{max(2, round(c / peak * 100))}%"'
+        f' title="{month_labels[i]}: {c}"><b>{c or ""}</b></div>'
+        for i, c in enumerate(monthly)
+    )
+    viz_html = (
+        '<section class="sec viz-sec"><h2>' + f"{year} at a glance" + "</h2>"
+        '<div class="kpi-row">'
+        f'<div class="kpi"><span class="kpi-n" data-countup="{len(rows)}">0</span>'
+        '<span class="kpi-l">public holidays</span></div>'
+        f'<div class="kpi"><span class="kpi-n" data-countup="{len(runs)}">0</span>'
+        '<span class="kpi-l">long weekends</span></div>'
+        f'<div class="kpi"><span class="kpi-n" data-countup="{weekend_ct}">0</span>'
+        '<span class="kpi-l">fall on weekends</span></div>'
+        "</div>"
+        "<h3>Holidays by month</h3>"
+        f'<div class="vz-wrap"><div class="vz-bars">{bars_html}</div>'
+        '<div class="vz-x">' + "".join(f"<span>{m}</span>" for m in month_labels) + "</div></div>"
+        '<div class="vz-legend"><span><i style="background:#34d399"></i>1 public holiday</span>'
+        '<span><i style="background:#0ea5e9"></i>more days off in that month</span></div>'
+        "</section>"
+    )
     body = (
         '<section class="hero">'
         f'<p class="badge">{esc(name)} · {year}</p>'
         f"<h1>{esc(name)} public holidays {year}</h1>"
         f'<p class="lede">Official public holidays in {esc(name)} for {year}, with weekdays, '
         "countdowns and the long weekends you can build around them.</p>"
+        '<div class="cta-row" style="margin-top:22px">'
+        '<button type="button" class="btn-share-hot" data-share-open>'
+        '<span aria-hidden="true">✨</span> 生成分享卡片 · Share card</button>'
+        f'<a class="btn ghost" href="../calendar-{year}.ics">Add {year} to calendar</a>'
+        "</div>"
         "</section>"
+        + viz_html
         + holiday_table(rows)
         + month_calendar_html(year, rows, cn, prefer_local=(cc == "CN"))
         + '<section class="ad">[Ad slot]</section>'
@@ -1955,8 +2057,6 @@ def page_year(cc: str, name: str, slug: str, year: int, rows: list[dict], runs: 
         + f'<p><a class="btn ghost" href="long-weekends/index.html">Full {year} long weekend guide</a></p>'
         "</section>"
         + (cn_summary_html(year) if cc == "CN" else "")
-        + '<p style="margin:18px 0 4px"><button type="button" class="btn ghost" data-share-open>'
-        + "分享卡片 / Share card</button></p>"
         + subscribe_block(cc, name, slug, year, site_url)
         + affiliate_block(name)
         + f'<p><a href="../index.html">← {esc(name)} overview</a></p>'
@@ -2297,7 +2397,51 @@ SHARE_CSS = """
 .share-plat{border:1px solid var(--line);background:var(--surface);color:var(--ink-soft);border-radius:999px;padding:7px 14px;font-size:.8rem;cursor:pointer;transition:all .18s}
 .share-plat:hover{border-color:var(--ink);transform:translateY(-1px)}
 .share-hint{font-size:.72rem;color:var(--muted);margin:10px 0 0;line-height:1.5}
+/* ── eye-catching share CTA + floating action button ── */
+.btn-share-hot{position:relative;display:inline-flex;align-items:center;gap:9px;border:0;cursor:pointer;font-weight:700;font-size:.95rem;padding:14px 24px;border-radius:999px;color:#04231a;background:linear-gradient(100deg,#34d399,#22d3ee,#a78bfa,#34d399);background-size:280% 100%;animation:hotgrad 7s linear infinite;box-shadow:0 12px 32px rgba(34,211,238,.32),0 0 0 1px rgba(255,255,255,.28) inset;transition:transform .18s,box-shadow .18s}
+.btn-share-hot:hover{transform:translateY(-2px) scale(1.02);box-shadow:0 18px 42px rgba(34,211,238,.42)}
+.btn-share-hot:active{transform:translateY(0) scale(.99)}
+@keyframes hotgrad{to{background-position:280% 50%}}
+.share-fab{position:fixed;right:20px;bottom:100px;z-index:70;display:inline-flex;align-items:center;gap:9px;padding:12px 18px;border-radius:999px;border:1px solid rgba(255,255,255,.35);cursor:pointer;color:#04231a;font-weight:800;font-size:.86rem;letter-spacing:.01em;background:linear-gradient(120deg,#34d399,#22d3ee);box-shadow:0 12px 30px rgba(34,211,238,.38);animation:fabpulse 2.8s ease-in-out infinite;transition:transform .18s}
+.share-fab:hover{transform:translateY(-3px) scale(1.04)}
+.share-fab .sf-ic{width:22px;height:22px;display:grid;place-items:center;border-radius:7px;background:rgba(255,255,255,.4);font-size:.95rem;line-height:1}
+.share-fab .sf-txt{display:inline-block}
+@keyframes fabpulse{0%,100%{box-shadow:0 12px 30px rgba(34,211,238,.38),0 0 0 0 rgba(52,211,153,.5)}50%{box-shadow:0 12px 30px rgba(34,211,238,.38),0 0 0 15px rgba(52,211,153,0)}}
+@media (max-width:720px){.share-fab{right:12px;bottom:78px;padding:10px 14px;font-size:.8rem}.btn-share-hot{padding:12px 18px;font-size:.88rem}}
+/* ── data-visualisation components ── */
+.kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:14px;margin:18px 0 6px}
+.kpi{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:16px 18px;position:relative;overflow:hidden}
+.kpi::after{content:"";position:absolute;right:-30px;bottom:-50px;width:130px;height:130px;border-radius:50%;background:radial-gradient(circle,rgba(52,211,153,.2),transparent 70%);pointer-events:none}
+.kpi-n{display:block;font-family:Georgia,"Times New Roman",serif;font-size:2.05rem;line-height:1.05;letter-spacing:-.02em}
+.kpi-l{display:block;color:var(--muted);font-size:.74rem;margin-top:6px;text-transform:uppercase;letter-spacing:.08em}
+.vz-wrap{margin:14px 0 4px}
+.vz-bars{display:flex;align-items:flex-end;gap:6px;height:132px;padding:10px 6px 6px;border-radius:14px;background:linear-gradient(180deg,rgba(52,211,153,.07),rgba(52,211,153,0));border:1px solid var(--line)}
+.vz-bars .bz{flex:1;position:relative;height:2px;min-height:2px;border-radius:5px 5px 2px 2px;background:linear-gradient(180deg,#34d399,#0ea5e9);transform-origin:bottom;animation:vzGrow .95s cubic-bezier(.2,.75,.25,1) both;opacity:.92}
+.vz-bars .bz:hover{filter:brightness(1.15);opacity:1}
+.vz-bars .bz b{position:absolute;top:-17px;left:0;right:0;text-align:center;font-size:.62rem;color:var(--muted);font-weight:600}
+.vz-x{display:flex;gap:6px;margin-top:6px}
+.vz-x span{flex:1;text-align:center;font-size:.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:.03em}
+.vz-legend{display:flex;gap:16px;flex-wrap:wrap;font-size:.72rem;color:var(--muted);margin-top:8px}
+.vz-legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+.vz-cmp{margin:6px 0 0}
+.vz-cmp .row{margin:14px 0}
+.vz-cmp .row-h{display:flex;justify-content:space-between;gap:12px;font-size:.84rem;margin-bottom:6px}
+@keyframes vzGrow{from{transform:scaleY(.02)}to{transform:scaleY(1)}}
+.vz-cmp .track{height:12px;border-radius:999px;background:rgba(15,23,42,.09);overflow:hidden}
+.vz-cmp .fill{height:100%;width:0;border-radius:999px;background:linear-gradient(90deg,#34d399,#22d3ee);transform-origin:left;animation:vzGrowX 1.05s cubic-bezier(.2,.75,.25,1) both}
+@keyframes vzGrowX{from{transform:scaleX(.01)}to{transform:scaleX(1)}}
+.vz-cmp .fill.b{background:linear-gradient(90deg,#f59e0b,#f43f5e)}
+@media (prefers-reduced-motion:reduce){.vz-bars .bz,.vz-cmp .fill{animation:none}}
+.donut-wrap{display:flex;align-items:center;gap:26px;flex-wrap:wrap;margin:10px 0}
+.vz-donut{width:156px;height:156px;transform:rotate(-90deg);flex:0 0 auto}
+.vz-donut .bg{fill:none;stroke:rgba(148,163,184,.25);stroke-width:14}
+.vz-donut .fg{fill:none;stroke:#34d399;stroke-width:14;stroke-linecap:round;transition:stroke-dashoffset 1.15s cubic-bezier(.2,.75,.25,1)}
+.donut-txt{display:flex;flex-direction:column;gap:6px}
+.donut-txt .big{font-family:Georgia,serif;font-size:1.9rem;line-height:1}
+.donut-txt .muted{font-size:.78rem}
 """
+
+
 
 
 SHARE_JS = r"""
@@ -2531,6 +2675,17 @@ SHARE_JS = r"""
   qrImg.src=D.qr;
   document.querySelectorAll('[data-share-open]').forEach(function(b){ b.addEventListener('click',function(e){ e.preventDefault(); open(); }); });
   if(new URLSearchParams(location.search).has('share')) { window.addEventListener('load', open); }
+  // floating, always-visible share CTA
+  (function(){
+    if(document.querySelector('.share-fab')) return;
+    var lang=(document.documentElement.lang||'en').slice(0,2);
+    var TXT={zh:'分享卡片',ja:'共有カード',ko:'공유 카드',es:'Compartir',fr:'Partager',de:'Teilen'};
+    var fab=document.createElement('button');
+    fab.type='button'; fab.className='share-fab'; fab.setAttribute('aria-label','Share card');
+    fab.innerHTML='<span class="sf-ic" aria-hidden="true">✨</span><span class="sf-txt">'+(TXT[lang]||'Share card')+'</span>';
+    fab.addEventListener('click', function(){ open(); });
+    document.body.appendChild(fab);
+  })();
   window.HK_OPEN_SHARE=open;
 })();
 """
@@ -2713,6 +2868,54 @@ def page_compare(a: tuple, b: tuple, year: int, rows_a: list[dict], rows_b: list
         ("Which holidays fall on the same date?",
          f"{len(common)} dates overlap in {year} — see both tables above."),
     ]
+
+    def _stats(rows: list[dict]) -> tuple[int, int]:
+        weekend = 0
+        months = [0] * 12
+        for row in rows:
+            try:
+                d = date.fromisoformat(row["date"])
+            except (KeyError, ValueError):
+                continue
+            months[d.month - 1] += 1
+            if d.weekday() >= 5:
+                weekend += 1
+        return weekend, max(months) if months else 0
+
+    a_wk, a_peak = _stats(rows_a)
+    b_wk, b_peak = _stats(rows_b)
+    peak = max(len(rows_a), len(rows_b)) or 1
+
+    def _cmp_row(label: str, av: int, bv: int) -> str:
+        aw, bw = round(av / peak * 100), round(bv / peak * 100)
+        return (
+            '<div class="row">'
+            f'<div class="row-h"><span>{esc(label)}</span><span><b>{av}</b> · <b>{bv}</b></span></div>'
+            f'<div class="track"><div class="fill" data-w="{aw}" style="width:{aw}%"></div></div>'
+            f'<div class="track" style="margin-top:5px"><div class="fill b" data-w="{bw}" style="width:{bw}%"></div></div>'
+            "</div>"
+        )
+
+    viz = (
+        '<section class="sec"><h2>Head-to-head numbers</h2>'
+        '<div class="kpi-row">'
+        f'<div class="kpi"><span class="kpi-n" data-countup="{len(rows_a)}">0</span>'
+        f'<span class="kpi-l">{esc(a_name)} holidays</span></div>'
+        f'<div class="kpi"><span class="kpi-n" data-countup="{len(rows_b)}">0</span>'
+        f'<span class="kpi-l">{esc(b_name)} holidays</span></div>'
+        f'<div class="kpi"><span class="kpi-n" data-countup="{len(common)}">0</span>'
+        '<span class="kpi-l">same-date overlaps</span></div>'
+        "</div>"
+        '<div class="vz-cmp">'
+        + _cmp_row("Public holidays", len(rows_a), len(rows_b))
+        + _cmp_row("Falling on weekends", a_wk, b_wk)
+        + _cmp_row("Busiest month", a_peak, b_peak)
+        + "</div>"
+        '<div class="vz-legend">'
+        f'<span><i style="background:#34d399"></i>{esc(a_name)}</span>'
+        f'<span><i style="background:#f59e0b"></i>{esc(b_name)}</span>'
+        "</div></section>"
+    )
     body = (
         '<section class="hero"><p class="eyebrow">Country comparison</p>'
         f"<h1>{esc(a_name)} vs {esc(b_name)} holidays {year}</h1>"
@@ -2723,6 +2926,7 @@ def page_compare(a: tuple, b: tuple, year: int, rows_a: list[dict], rows_b: list
         f'<span class="chip">{esc(b_name)}: {len(rows_b)} holidays</span>'
         f'<span class="chip">Same date: {len(common)}</span>'
         "</div></section>"
+        + viz
         + holiday_table(rows_a, a_name, f"../../{a_slug}/index.html")
         + holiday_table(rows_b, b_name, f"../../{b_slug}/index.html")
         + '<section class="ad">[Ad slot]</section>'
@@ -2914,11 +3118,27 @@ def page_holiday(kind: str, slug: str, name: str, rows: list[dict], site_url: st
     if kind == "countdown":
         h1 = f"Days until {name}"
         lede = f"Live countdown to the next {name} ({next_label}), with dates by country."
-        box = (
-            f'<div class="countdown" data-date="{esc(nxt.isoformat())}">'
-            '<span data-countdown></span></div>'
-            if nxt else ""
-        )
+        box = ""
+        if nxt:
+            year_start = date(nxt.year, 1, 1)
+            span = max(1, (nxt - year_start).days)
+            pct = max(0.0, min(1.0, (today - year_start).days / span))
+            days_left = max(0, (nxt - today).days)
+            circ = 314.159
+            box = (
+                '<div class="donut-wrap">'
+                f'<svg class="vz-donut" data-donut="{pct:.3f}" viewBox="0 0 120 120" aria-hidden="true">'
+                '<circle class="bg" cx="60" cy="60" r="50"></circle>'
+                f'<circle class="fg" cx="60" cy="60" r="50" style="stroke-dasharray:{circ};'
+                f'stroke-dashoffset:{circ * (1 - pct):.1f}"></circle></svg>'
+                '<div class="donut-txt">'
+                f'<span class="big" data-countup="{days_left}">0</span>'
+                f'<span class="muted">days until {esc(name)} · {esc(next_label)}</span>'
+                f"<span class=\"muted\">{int(pct * 100)}% of this year's wait is behind you</span>"
+                "</div>"
+                f'<div class="countdown" data-date="{esc(nxt.isoformat())}"><span data-countdown></span></div>'
+                "</div>"
+            )
         title = f"Days Until {name} — Live Countdown | {SITE_NAME}"
         description = f"Countdown to the next {name} ({next_label}). Dates by country and calendar links."
         canonical = f"{site_url}/days-until/{slug}/"
