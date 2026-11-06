@@ -1284,6 +1284,7 @@ def footer_html(base: str, verified: str) -> str:
         f'<div><strong data-i18n="foot.data">Data</strong>'
         f'<a href="{base}about/index.html" data-i18n="foot.about">About &amp; sources</a>'
         f'<a href="{base}privacy/index.html" data-i18n="foot.privacy">Privacy</a>'
+        f'<a href="{base}support/index.html">♥ Support · 打赏</a>'
         '<a href="https://date.nager.at" rel="nofollow noopener" target="_blank">Nager.Date</a></div>'
         "</div>"
         f'<div class="foot-note" data-i18n="foot.note">Data from open sources, cross-checked against official government '
@@ -2186,6 +2187,68 @@ def page_static(slug: str, title: str, body_html: str, site_url: str, verified: 
         title=f"{title} | {SITE_NAME}",
         description=f"{title} — {SITE_NAME}.",
         canonical=f"{site_url}/{slug}/",
+        base="../",
+        body=body,
+        verified=verified,
+    )
+
+
+SUPPORT_ASSETS = ROOT / "assets" / "support"
+
+
+def page_support(site_url: str, verified: str) -> str:
+    def media(img: str, alt: str) -> str:
+        if (SUPPORT_ASSETS / f"{img}.png").exists():
+            return (f'<img class="sup-qr" src="../assets/support/{img}.png" '
+                    f'alt="{esc(alt)}" loading="lazy">')
+        return (f'<div class="sup-ph" aria-hidden="true">QR<br>'
+                f'<code>assets/support/{img}.png</code></div>')
+
+    cards = "".join([
+        '<div class="sup-card">' + media("wechat", "WeChat tip QR code") +
+        '<h3>微信赞赏</h3><p>扫码随意打赏，金额随意。</p></div>',
+        '<div class="sup-card">' + media("alipay", "Alipay tip QR code") +
+        '<h3>支付宝</h3><p>扫码打赏，支持项目持续更新。</p></div>',
+        '<div class="sup-card"><div class="sup-ico">☕</div><h3>Buy me a coffee</h3>'
+        '<p>International cards / PayPal.</p>'
+        '<a class="btn" href="https://buymeacoffee.com/" target="_blank" rel="noopener">Open</a></div>',
+        '<div class="sup-card"><div class="sup-ico">★</div><h3>GitHub Sponsors</h3>'
+        '<p>Monthly or one-time sponsorship.</p>'
+        '<a class="btn" href="https://github.com/sponsors/ChaoyuZhang1" target="_blank" '
+        'rel="noopener">Sponsor</a></div>',
+    ])
+    body = (
+        '<style>'
+        '.sup-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin:22px 0}'
+        '@media(max-width:820px){.sup-grid{grid-template-columns:repeat(2,1fr)}}'
+        '@media(max-width:460px){.sup-grid{grid-template-columns:1fr}}'
+        '.sup-card{background:#fff;border:1px solid #e7e3da;border-radius:16px;padding:18px;text-align:center}'
+        '.sup-qr{width:100%;max-width:180px;border-radius:12px;display:block;margin:0 auto 12px}'
+        '.sup-ph{height:150px;border:2px dashed #d9d3c7;border-radius:12px;display:flex;flex-direction:column;'
+        'align-items:center;justify-content:center;gap:6px;color:#8a8274;font-size:.78rem;margin-bottom:12px}'
+        '.sup-ph code{font-size:.7rem;word-break:break-all}'
+        '.sup-ico{font-size:2.2rem;line-height:1;margin:26px 0 14px}'
+        '.sup-card h3{margin:0 0 6px;font-size:1.02rem}.sup-card p{color:#6b6558;font-size:.86rem;margin:0 0 12px}'
+        '</style>'
+        '<section class="hero"><p class="eyebrow">SUPPORT · 打赏支持</p>'
+        '<h1>Keep HolidayKit free</h1>'
+        '<p class="lede">If HolidayKit saved you time, you can buy me a coffee. Tips are optional — '
+        'every country page, calendar subscription and the API stay free.</p></section>'
+        '<section class="sec"><h2>打赏方式</h2><div class="sup-grid">' + cards + '</div>'
+        '<p class="muted">打赏完全自愿，不换取任何功能、数据或优先级，也不影响你使用本站。</p></section>'
+        '<section class="sec"><h2>打赏用在哪里</h2><ul>'
+        '<li>持续更新 95 个国家的假期数据并补齐 2029 以后的年份</li>'
+        '<li>域名、CDN 与构建所需的基础设施费用</li>'
+        '<li>继续把长周末、学校假期、国家对比做深</li></ul></section>'
+        '<section class="sec"><h2>Commercial API use</h2>'
+        '<p>The JSON API is free for everyone under a generous fair-use policy. If you use it inside a '
+        'commercial product or need a higher-volume guarantee, a sponsor licence is available — tip above '
+        'and get in touch.</p></section>'
+    )
+    return render_page(
+        title=f"Support {SITE_NAME} · 打赏支持",
+        description="Support HolidayKit with a tip — WeChat, Alipay, Buy Me a Coffee or GitHub Sponsors.",
+        canonical=f"{site_url}/support/",
         base="../",
         body=body,
         verified=verified,
@@ -3316,8 +3379,9 @@ def page_api_docs(site_url: str, verified: str, countries: list[tuple[str, str, 
     codes = ", ".join(cc for cc, _, _ in countries[:24])
     body = (
         '<section class="hero"><h1>Free holiday API</h1>'
-        '<p class="lede">Every country and year as static JSON. CORS enabled, no API key, no rate limit — '
-        "please cache responses and attribute HolidayKit.</p></section>"
+        '<p class="lede">Every country and year as static JSON. CORS enabled, no API key, and a generous '
+        'fair-use policy — please cache responses and attribute HolidayKit. If you need commercial or '
+        'high-volume use, see <a href="../support/index.html">Support</a> for a sponsor licence.</p></section>'
         '<section class="sec"><h2>Endpoints</h2>'
         '<pre class="code">'
         + "GET " + site_url + "/api/v1/countries.json\n"
@@ -3806,10 +3870,14 @@ def main() -> int:
     if OG_IMAGE:
         shutil.copyfile(ROOT / "assets" / "og-cover.png", out / "og-cover.png")
     (out / "_headers").write_text(
-        "/api/*\n  Access-Control-Allow-Origin: *\n  Cache-Control: public, max-age=3600\n"
+        "/api/v1/*\n  Access-Control-Allow-Origin: *\n  Cache-Control: public, max-age=86400\n"
+        "/assets/support/*\n  Cache-Control: public, max-age=604800\n"
         "/widget.js\n  Cache-Control: public, max-age=86400\n",
         encoding="utf-8",
     )
+    support_dir = ROOT / "assets" / "support"
+    if support_dir.exists():
+        shutil.copytree(support_dir, out / "assets" / "support", dirs_exist_ok=True)
     if ADSENSE_CLIENT:
         (out / "ads.txt").write_text(
             f"google.com, {ADSENSE_CLIENT}, DIRECT, f08c47fec0942fa0\n", encoding="utf-8")
@@ -3834,6 +3902,9 @@ def main() -> int:
     (out / "embed" / "index.html").write_text(
         page_embed_demo(site_url, verified, demo_cc, demo_name, demo_year), encoding="utf-8")
     urls.append(("embed/", "0.5"))
+    (out / "support").mkdir(exist_ok=True)
+    (out / "support" / "index.html").write_text(page_support(site_url, verified), encoding="utf-8")
+    urls.append(("support/", "0.4"))
 
     # compliance pages
     privacy = (
