@@ -441,6 +441,15 @@ nav a{position:relative}
 .sub-help ol{margin:8px 0 2px 18px;padding:0;color:var(--ink-soft);font-size:.88rem}
 .sub-help li{margin:4px 0}
 .sub-help code{background:var(--soft);padding:1px 6px;border-radius:6px;font-size:.82rem;word-break:break-all}
+.cal-cell{display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:1px;padding:4px 2px}
+.cal-day{font-size:.84rem;line-height:1.15;font-variant-numeric:tabular-nums}
+.cal-hol{font-size:.56rem;line-height:1.1;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--accent);font-weight:600}
+.cal-note{font-size:.5rem;line-height:1.2;background:#fee2e2;color:#991b1b;border-radius:4px;padding:0 3px;font-weight:700}
+.cal-rest .cal-note{background:#fff7e6;color:#8a5a00}
+.cal-single .cal-day{font-size:.9rem}
+.cal-single .cal-hol{font-size:.62rem}
+.cal-year .cal-hol{font-size:.5rem}
+.cal-year .cal-note{font-size:.46rem}
 """
 
 JS = """
@@ -525,7 +534,7 @@ HOME_CAL_JS = r"""
   function holidayMap(){
     var map = {};
     ((state.data && state.data.holidays) || []).forEach(function (h) {
-      map[h.date] = (h.localName && h.localName !== h.name) ? h.name + ' · ' + h.localName : h.name;
+      map[h.date] = { name: h.name, localName: h.localName || h.name };
     });
     return map;
   }
@@ -553,23 +562,36 @@ HOME_CAL_JS = r"""
       var d = new Date(state.year, state.month, i);
       var k = key(d), cls = 'cal-cell';
       if (d.getDay() === 0 || d.getDay() === 6) cls += ' cal-weekend';
-      if (hol[k]) cls += ' cal-holiday';
+      var info = hol[k];
+      if (info) cls += ' cal-holiday';
       if (cn.rest[k]) cls += ' cal-rest';
       if (cn.work[k]) cls += ' cal-makeup';
-      var tt = hol[k] || '';
-      if (cn.work[k]) tt = (tt ? tt + ' / ' : '') + '补班';
       var note = cn.work[k] ? '补班' : (cn.rest[k] ? '调休' : '');
+      var label = '';
+      if (info) {
+        var isZh = window.HKI18N && window.HKI18N.lang() === 'zh';
+        label = (isZh && info.localName && info.localName !== info.name) ? info.localName : info.name;
+      }
+      if (!label) label = note;
+      if (!label && cn.rest[k]) label = cn.rest[k];
+      if (!label && cn.work[k]) label = cn.work[k];
+      var safeLabel = label.replace(/"/g, '&quot;');
+      var labelHtml = label ? '<span class="cal-hol" title="' + safeLabel + '">' + safeLabel + '</span>' : '';
+      var noteHtml = note ? '<span class="cal-note">' + note + '</span>' : '';
       html += '<div class="' + cls + '" data-date="' + k + '" data-hol="' +
-        (hol[k] || '').replace(/"/g, '&quot;') + '" data-note="' + note +
-        '" title="' + tt + '">' + i + '</div>';
+        (info ? info.name.replace(/"/g, '&quot;') : '') + '" data-note="' + note +
+        '" title="' + safeLabel + '"><span class="cal-day">' + i + '</span>' + labelHtml + noteHtml + '</div>';
     }
     html += '</div>';
     var listItems = [];
     Object.keys(hol).sort().forEach(function (k) {
       var d = new Date(k + 'T00:00:00');
       if (d.getFullYear() === state.year && d.getMonth() === state.month) {
+        var info2 = hol[k];
+        var isZh2 = window.HKI18N && window.HKI18N.lang() === 'zh';
+        var nm = (isZh2 && info2.localName && info2.localName !== info2.name) ? info2.localName : info2.name;
         listItems.push('<li><span class="cal-date">' + d.getDate() + ' ' +
-          d.toLocaleDateString(undefined, { month: 'short' }) + '</span>' + hol[k] + '</li>');
+          d.toLocaleDateString(undefined, { month: 'short' }) + '</span>' + nm + '</li>');
       }
     });
     if (listItems.length) html += '<ul class="cal-list">' + listItems.join('') + '</ul>';
@@ -589,6 +611,12 @@ HOME_CAL_JS = r"""
     state.cc = info.code; state.name = info.name; state.slug = info.slug;
     if (countryEl) countryEl.textContent = info.name;
     if (linkEl) linkEl.href = '/' + info.slug + '/index.html';
+    var cta = document.querySelector('[data-home-country-cta]');
+    if (cta) {
+      var focusYear = today.getFullYear() + 1;
+      cta.href = '/' + info.slug + '/' + focusYear + '/index.html';
+      cta.textContent = info.name + ' holidays';
+    }
     loadYear(render);
   }
   function guess(){
@@ -785,7 +813,14 @@ I18N_JS = r"""
   var forced = window.HK_FORCE_LANG;
   if (forced && D[forced]) { lang = forced; }
   else if (!lang || lang === 'en') { try { var s2 = localStorage.getItem('hk_lang'); if (!s2) lang = detect(); } catch (e) { lang = detect(); } }
-  function t(key){ var d = D[lang] || D.en; return d[key] || D.en[key] || key; }
+  var SUFFIX = { en:'holidays', zh:'假期', ja:'の祝日', ko:'공휴일', es:'festivos', fr:'jours fériés', de:'Feiertage' };
+  function t(key){
+    var d = D[lang] || D.en;
+    if (d[key]) return d[key];
+    if (D.en[key]) return D.en[key];
+    if (key === 'hero.holidaysSuffix') return SUFFIX[lang] || SUFFIX.en;
+    return key;
+  }
   function apply(){
     document.documentElement.lang = LOCALES[lang] || 'en-US';
     var nodes = document.querySelectorAll('[data-i18n]');
@@ -1334,8 +1369,10 @@ def long_weekend_cards(runs: list[dict], limit: int = 12) -> str:
     return '<div class="lw-grid">' + "".join(cards) + "</div>"
 
 
-def month_calendar_html(year: int, rows: list[dict], cn: dict | None = None) -> str:
+def month_calendar_html(year: int, rows: list[dict], cn: dict | None = None,
+                        prefer_local: bool = False) -> str:
     holidays: dict[date, list[str]] = {}
+    labels: dict[date, str] = {}
     for row in rows:
         try:
             day = date.fromisoformat(str(row["date"]))
@@ -1343,6 +1380,9 @@ def month_calendar_html(year: int, rows: list[dict], cn: dict | None = None) -> 
             continue
         if day.year == year:
             holidays.setdefault(day, []).append(str(row["name"]))
+            label = str(row.get("localName") or row["name"]) if prefer_local else str(row["name"])
+            if label:
+                labels.setdefault(day, label)
     rest_days: dict[date, str] = {}
     work_days: dict[date, str] = {}
     if cn:
@@ -1387,10 +1427,20 @@ def month_calendar_html(year: int, rows: list[dict], cn: dict | None = None) -> 
                     note = "补班"
                 elif d in rest_days:
                     note = "调休"
+                label = labels.get(d, "")
+                if not label and d in rest_days:
+                    label = rest_days[d] or "调休"
+                if not label and d in work_days:
+                    label = work_days[d] or "补班"
+                label_html = (
+                    f'<span class="cal-hol" title="{esc(label)}">{esc(label)}</span>' if label else ""
+                )
+                note_html = f'<span class="cal-note">{note}</span>' if note else ""
                 cells.append(
                     f'<div class="{cls}" data-date="{d.isoformat()}" '
                     f'data-hol="{esc("; ".join(holidays.get(d, [])))}" data-note="{esc(note)}" '
-                    f'title="{esc("; ".join(titles))}">{day}</div>'
+                    f'title="{esc("; ".join(titles))}">'
+                    f'<span class="cal-day">{day}</span>{label_html}{note_html}</div>'
                 )
         head = "".join(f"<span>{w}</span>" for w in ["M", "T", "W", "T", "F", "S", "S"])
         month_hols = [
@@ -1429,14 +1479,19 @@ def month_calendar_html(year: int, rows: list[dict], cn: dict | None = None) -> 
     )
 
 
-def single_month_html(year: int, month: int, rows: list[dict], cn: dict | None = None) -> str:
+def single_month_html(year: int, month: int, rows: list[dict], cn: dict | None = None,
+                      prefer_local: bool = False) -> str:
     holidays: dict[date, list[str]] = {}
+    labels: dict[date, str] = {}
     for row in rows:
         try:
             day = date.fromisoformat(str(row["date"]))
         except (KeyError, ValueError):
             continue
         holidays.setdefault(day, []).append(str(row["name"]))
+        label = str(row.get("localName") or row["name"]) if prefer_local else str(row["name"])
+        if label:
+            labels.setdefault(day, label)
     rest_days: set[date] = set()
     work_days: set[date] = set()
     if cn:
@@ -1469,10 +1524,17 @@ def single_month_html(year: int, month: int, rows: list[dict], cn: dict | None =
                 cls += " cal-makeup"
             title = ", ".join(holidays.get(d, []))
             note = "补班" if d in work_days else ("调休" if d in rest_days else "")
+            label = labels.get(d, "")
+            if note and not label:
+                label = note
+            label_html = (
+                f'<span class="cal-hol" title="{esc(label)}">{esc(label)}</span>' if label else ""
+            )
+            note_html = f'<span class="cal-note">{note}</span>' if note else ""
             cells.append(
                 f'<div class="{cls}" data-date="{d.isoformat()}" '
                 f'data-hol="{esc(", ".join(holidays.get(d, [])))}" data-note="{esc(note)}" '
-                f'title="{esc(title)}">{day}</div>'
+                f'title="{esc(title)}"><span class="cal-day">{day}</span>{label_html}{note_html}</div>'
             )
     head = "".join(f"<span>{w}</span>" for w in ["M", "T", "W", "T", "F", "S", "S"])
     month_hols = [
@@ -1573,6 +1635,20 @@ def build_ics(cc: str, name: str, year: int, rows: list[dict], cn: dict | None =
     return "\r\n".join(lines) + "\r\n"
 
 
+def pick_focus_year(years: list[int], today: date) -> int:
+    ys = sorted(int(y) for y in years)
+    for cand in (today.year + 1, today.year):
+        if cand in ys:
+            return cand
+    return ys[-1] if ys else today.year
+
+
+def year_order(years: list[int], today: date) -> list[int]:
+    ys = sorted(int(y) for y in years)
+    focus = pick_focus_year(ys, today)
+    return [focus] + [y for y in ys if y > focus] + [y for y in ys if y < focus]
+
+
 def page_lang_home(lang: str, countries: list[tuple[str, str, str]], by_country,
                    site_url: str, verified: str, today: date) -> str:
     T = HOME_I18N[lang]
@@ -1588,7 +1664,7 @@ def page_lang_home(lang: str, countries: list[tuple[str, str, str]], by_country,
         )
     default_country = next((c for c in countries if c[0] == "US"), countries[0])
     dcc, dname, dslug = default_country
-    default_year = today.year if today.year in by_country[dcc] else max(by_country[dcc])
+    default_year = pick_focus_year(by_country[dcc].keys(), today)
     default_rows = by_country[dcc].get(today.year) or by_country[dcc][default_year]
     fallback_cal = single_month_html(today.year, today.month, default_rows)
     cal_open = T["cal_open"]
@@ -1664,7 +1740,7 @@ def page_index(countries: list[tuple[str, str, str]], by_country, site_url: str,
     default_cc, default_name, default_slug = default_country
     cal_year = today.year
     cal_month = today.month
-    default_year = cal_year if cal_year in by_country[default_cc] else max(by_country[default_cc])
+    default_year = pick_focus_year(by_country[default_cc].keys(), today)
     default_rows = by_country[default_cc].get(cal_year) or by_country[default_cc][default_year]
     fallback_cal = single_month_html(cal_year, cal_month, default_rows)
     feature_card = (
@@ -1687,7 +1763,7 @@ def page_index(countries: list[tuple[str, str, str]], by_country, site_url: str,
         "around them, and one-click calendar subscriptions — for every country and year that matter.</p>"
         '<div class="cta-row">'
         '<a class="btn" href="#countries" data-i18n="hero.cta.browse">Browse countries</a>'
-        f'<a class="btn ghost" href="{default_slug}/{default_year}/index.html">'
+        f'<a class="btn ghost" data-home-country-cta href="{default_slug}/{default_year}/index.html">'
         f"{esc(default_name)} holidays</a>"
         "</div>"
         '<div class="stats">'
@@ -1739,17 +1815,20 @@ def page_index(countries: list[tuple[str, str, str]], by_country, site_url: str,
 
 
 def page_country(cc: str, name: str, slug: str, by_country, site_url: str, verified: str) -> str:
-    years = sorted(by_country[cc].keys(), reverse=True)
-    latest = years[0]
+    today = date.today()
+    years = sorted(int(y) for y in by_country[cc].keys())
+    latest = pick_focus_year(years, today)
+    ordered = year_order(years, today)
     all_rows = [r for y in years for r in by_country[cc][y]]
     runs = compute_long_weekends(all_rows, latest)
     top_runs = runs[:6]
 
     year_nav = "".join(
-        f'<a href="{y}/index.html">{y}</a>' for y in years
+        f'<a href="{y}/index.html">' + (f'<strong>{y}</strong>' if y == latest else str(y)) + "</a>"
+        for y in years
     )
     tables = ""
-    for y in years[:2]:
+    for y in ordered[:2]:
         tables += (
             f'<section class="sec"><h2>{esc(name)} public holidays {y}</h2>'
             + holiday_table(by_country[cc][y])
@@ -1797,7 +1876,7 @@ def page_country(cc: str, name: str, slug: str, by_country, site_url: str, verif
         "<p>Subscribe once and the dates update in your calendar. Works with Google Calendar, "
         "Apple Calendar and Outlook.</p>"
         + "".join(
-            f'<p><a class="btn" href="calendar-{y}.ics">{esc(name)} {y} (.ics)</a></p>' for y in years[:2]
+            f'<p><a class="btn" href="calendar-{y}.ics">{esc(name)} {y} (.ics)</a></p>' for y in ordered[:2]
         )
         + "</section>"
     )
@@ -1820,9 +1899,9 @@ def page_country(cc: str, name: str, slug: str, by_country, site_url: str, verif
     body += '<p><a href="../index.html">← All countries</a></p>'
 
     return render_page(
-        title=f"{name} Public Holidays {years[0]} — Dates & Long Weekends | {SITE_NAME}",
-        description=f"All {name} public holidays for {years[0]} and {years[-1]}: dates, weekdays, "
-                    f"long weekends and bridge days. Add them to your calendar in one click.",
+        title=f"{name} Public Holidays {latest} — Dates & Long Weekends | {SITE_NAME}",
+        description=f"All {name} public holidays for {latest}: dates, weekdays, long weekends and bridge days. "
+                    f"Add them to your calendar in one click.",
         canonical=f"{site_url}/{slug}/",
         base="../",
         body=body,
@@ -1844,7 +1923,7 @@ def page_year(cc: str, name: str, slug: str, year: int, rows: list[dict], runs: 
         "countdowns and the long weekends you can build around them.</p>"
         "</section>"
         + holiday_table(rows)
-        + month_calendar_html(year, rows, cn)
+        + month_calendar_html(year, rows, cn, prefer_local=(cc == "CN"))
         + '<section class="ad">[Ad slot]</section>'
         + f'<section class="sec"><h2>Long weekends and bridge days in {year}</h2>'
         + long_weekend_cards(runs, 8)
