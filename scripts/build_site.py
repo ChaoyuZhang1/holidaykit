@@ -30,6 +30,11 @@ from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from urllib.parse import quote
 
+try:
+    import qrcode  # type: ignore
+except ImportError:  # pragma: no cover
+    qrcode = None
+
 ROOT = Path(__file__).resolve().parents[1]
 
 SITE_NAME = "HolidayKit"
@@ -1241,7 +1246,7 @@ def render_page(*, title: str, description: str, canonical: str, base: str,
         '<link rel="icon" href="/favicon.svg" type="image/svg+xml">'
         f'<link rel="sitemap" type="application/xml" href="{base}sitemap.xml">'
         + alternates
-        + f"<style>{CSS}{CSS2}</style>"
+        + f"<style>{CSS}{CSS2}{SHARE_CSS}</style>"
     )
     if ADSENSE_CLIENT:
         head += (
@@ -1820,6 +1825,16 @@ def page_country(cc: str, name: str, slug: str, by_country, site_url: str, verif
     years = sorted(int(y) for y in by_country[cc].keys())
     latest = pick_focus_year(years, today)
     ordered = year_order(years, today)
+    share_extra = (
+        "window.HK_SHARE="
+        + json.dumps(
+            share_payload(cc, name, slug, latest, by_country[cc][latest], site_url,
+                          cn_year_data(latest) if cc == "CN" else None),
+            ensure_ascii=False,
+        )
+        + ";"
+        + SHARE_JS
+    )
     all_rows = [r for y in years for r in by_country[cc][y]]
     runs = compute_long_weekends(all_rows, latest)
     top_runs = runs[:6]
@@ -1893,6 +1908,8 @@ def page_country(cc: str, name: str, slug: str, by_country, site_url: str, verif
     if cc == "CN":
         body += cn_summary_html(latest)
     body += subscribe_block(cc, name, slug, latest, site_url)
+    body += '<p style="margin:14px 0"><button type="button" class="btn ghost" data-share-open>'
+    body += "分享卡片 / Share card</button></p>"
     body += official_source_html(cc)
     body += affiliate_block(name)
     body += embed_block(cc, latest)
@@ -1910,12 +1927,19 @@ def page_country(cc: str, name: str, slug: str, by_country, site_url: str, verif
         json_ld=faq_json_ld(faq),
         cta_href=f"calendar-{latest}.ics",
         cta_label=f"Add {latest} to calendar",
+        extra_js=share_extra,
     )
 
 
 def page_year(cc: str, name: str, slug: str, year: int, rows: list[dict], runs: list[dict],
               site_url: str, verified: str) -> str:
     cn = cn_year_data(year) if cc == "CN" else None
+    share_extra = (
+        "window.HK_SHARE="
+        + json.dumps(share_payload(cc, name, slug, year, rows, site_url, cn), ensure_ascii=False)
+        + ";"
+        + SHARE_JS
+    )
     body = (
         '<section class="hero">'
         f'<p class="badge">{esc(name)} · {year}</p>'
@@ -1931,6 +1955,8 @@ def page_year(cc: str, name: str, slug: str, year: int, rows: list[dict], runs: 
         + f'<p><a class="btn ghost" href="long-weekends/index.html">Full {year} long weekend guide</a></p>'
         "</section>"
         + (cn_summary_html(year) if cc == "CN" else "")
+        + '<p style="margin:18px 0 4px"><button type="button" class="btn ghost" data-share-open>'
+        + "分享卡片 / Share card</button></p>"
         + subscribe_block(cc, name, slug, year, site_url)
         + affiliate_block(name)
         + f'<p><a href="../index.html">← {esc(name)} overview</a></p>'
@@ -1953,6 +1979,7 @@ def page_year(cc: str, name: str, slug: str, year: int, rows: list[dict], runs: 
         json_ld=faq_json_ld(faq),
         cta_href=f"../calendar-{year}.ics",
         cta_label=f"Add {year} to calendar",
+        extra_js=share_extra,
     )
 
 
@@ -2194,6 +2221,252 @@ def cn_summary_html(year: int) -> str:
         + cn_tables_html(year, rest, work)
         + "</section>"
     )
+
+
+def make_qr(url: str, path: Path) -> bool:
+    if qrcode is None:
+        return False
+    try:
+        img = qrcode.make(url, box_size=4, border=1)
+        img.save(path)
+        return True
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def share_payload(cc: str, name: str, slug: str, year: int, rows: list[dict], site_url: str,
+                  cn: dict | None = None) -> dict:
+    months: list[list[dict]] = [[] for _ in range(12)]
+    seen: set[str] = set()
+    for row in rows:
+        try:
+            d = date.fromisoformat(str(row["date"]))
+        except (KeyError, ValueError):
+            continue
+        if d.year != year:
+            continue
+        months[d.month - 1].append({
+            "d": d.day,
+            "n": str(row.get("localName") or row["name"]),
+        })
+        seen.add(d.isoformat())
+    if cn:
+        rest = cn.get("rest") or []
+        work = cn.get("work") or []
+        for item in rest:
+            try:
+                d = date.fromisoformat(item["date"])
+            except (KeyError, ValueError):
+                continue
+            if d.year == year and d.isoformat() not in seen:
+                months[d.month - 1].append({"d": d.day, "n": item.get("name") or "Holiday"})
+                seen.add(d.isoformat())
+        for item in work:
+            try:
+                d = date.fromisoformat(item["date"])
+            except (KeyError, ValueError):
+                continue
+            if d.year == year and d.isoformat() not in seen:
+                months[d.month - 1].append({"d": d.day, "n": (item.get("name") or "") + " 补班"})
+                seen.add(d.isoformat())
+    for month in months:
+        month.sort(key=lambda x: x["d"])
+    return {
+        "country": name,
+        "slug": slug,
+        "year": year,
+        "url": f"{site_url}/{slug}/{year}/",
+        "qr": "/assets/qr/" + slug + ".png",
+        "months": months,
+    }
+
+
+SHARE_CSS = """
+.share-modal{position:fixed;inset:0;z-index:80;background:rgba(12,16,22,.62);backdrop-filter:blur(6px);display:none;align-items:center;justify-content:center;padding:20px}
+.share-modal.on{display:flex}
+.share-panel{background:var(--surface);border:1px solid var(--line);border-radius:20px;padding:18px;max-width:min(780px,96vw);max-height:94vh;overflow:auto;box-shadow:0 30px 80px rgba(15,17,21,.35)}
+.share-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;font-size:.95rem}
+.share-close{border:1px solid var(--line);background:var(--surface);width:32px;height:32px;border-radius:10px;cursor:pointer;font-size:1rem;line-height:1}
+.share-canvas{display:block;width:100%;max-height:52vh;height:auto;border-radius:12px;background:#111;margin:0 auto}
+.share-controls{display:flex;gap:12px;flex-wrap:wrap;margin:12px 0}
+.share-controls label{font-size:.72rem;color:var(--muted);display:flex;flex-direction:column;gap:4px;text-transform:uppercase;letter-spacing:.06em}
+.share-controls select{padding:7px 10px;border:1px solid var(--line);border-radius:9px;background:var(--surface);font-size:.85rem;text-transform:none;letter-spacing:0}
+.share-btns{display:flex;gap:8px;flex-wrap:wrap}
+.share-btns .btn{padding:9px 16px;font-size:.85rem}
+"""
+
+
+SHARE_JS = r"""
+(function(){
+  var D=window.HK_SHARE; if(!D) return;
+  var TPL={
+    aurora:{bg:['#0e211d','#0a1420'],ink:'#eef7f2',sub:'#9fb8ae',accent:'#34d399',cell:'rgba(255,255,255,.06)',line:'rgba(255,255,255,.14)',glow:['rgba(52,211,153,.30)','rgba(56,189,248,.16)']},
+    paper:{bg:['#f8f3e8','#efe5d2'],ink:'#1d1a16',sub:'#6f6557',accent:'#b5731a',cell:'rgba(255,255,255,.55)',line:'rgba(29,26,22,.14)',glow:['rgba(181,115,26,.16)','rgba(29,26,22,.06)']},
+    neon:{bg:['#050809','#0a1411'],ink:'#eafff3',sub:'#7fd6a5',accent:'#7cffb2',cell:'rgba(124,255,178,.08)',line:'rgba(124,255,178,.28)',glow:['rgba(124,255,178,.24)','rgba(0,255,170,.10)']},
+    bloom:{bg:['#ffe9f0','#e8efff'],ink:'#2b2540',sub:'#6b6280',accent:'#7c5cff',cell:'rgba(255,255,255,.62)',line:'rgba(43,37,64,.14)',glow:['rgba(255,140,190,.28)','rgba(124,92,255,.18)']}
+  };
+  var SIZES={story:[1080,1350],square:[1080,1080],wide:[1600,900]};
+  var MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var st={tpl:'aurora',size:'story',month:-1,qr:null};
+  var canvas=null, modal=null, qrImg=null;
+  function px(n){ return Math.round(n); }
+  function rr(ctx,x,y,w,h,r){ var q=Math.min(r,w/2,h/2); ctx.beginPath(); ctx.moveTo(x+q,y); ctx.arcTo(x+w,y,x+w,y+h,q); ctx.arcTo(x+w,y+h,x,y+h,q); ctx.arcTo(x,y+h,x,y,q); ctx.arcTo(x,y,x+w,y,q); ctx.closePath(); }
+  function fit(ctx,text,max,size,font){ var s=size; do{ ctx.font='600 '+s+'px '+font; if(ctx.measureText(text).width<=max) break; s-=2; }while(s>10); return s; }
+  function draw(){
+    if(!canvas) return;
+    var S=SIZES[st.size], W=S[0], H=S[1];
+    canvas.width=W; canvas.height=H;
+    var ctx=canvas.getContext('2d'), t=TPL[st.tpl];
+    var g=ctx.createLinearGradient(0,0,W,H); g.addColorStop(0,t.bg[0]); g.addColorStop(1,t.bg[1]);
+    ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+    function blob(cx,cy,r,color){ var rg=ctx.createRadialGradient(cx,cy,0,cx,cy,r); rg.addColorStop(0,color); rg.addColorStop(1,'rgba(0,0,0,0)'); ctx.fillStyle=rg; ctx.beginPath(); ctx.arc(cx,cy,r,0,7); ctx.fill(); }
+    blob(W*0.16,H*0.05,W*0.42,t.glow[0]); blob(W*0.92,H*0.9,W*0.5,t.glow[1]);
+    var P=px(W*0.055);
+    ctx.fillStyle=t.ink;
+    ctx.font='700 '+px(W*0.034)+'px Georgia,"Times New Roman",serif';
+    ctx.fillText('HolidayKit',P,px(H*0.085));
+    ctx.fillStyle=t.sub; ctx.font='400 '+px(W*0.016)+'px system-ui,sans-serif';
+    ctx.fillText('Public holidays · long weekends',P,px(H*0.115));
+    ctx.textAlign='right'; ctx.fillStyle=t.accent;
+    ctx.font='700 '+px(W*0.05)+'px Georgia,serif';
+    ctx.fillText(String(D.year),W-P,px(H*0.095));
+    ctx.textAlign='left';
+    ctx.fillStyle=t.ink;
+    var title=D.country+' holidays';
+    var ts=fit(ctx,title,W-P*2,px(W*0.062),'Georgia,"Songti SC","Microsoft YaHei",serif');
+    ctx.font='600 '+ts+'px Georgia,"Songti SC","Microsoft YaHei",serif';
+    ctx.fillText(title,P,px(H*0.185));
+    if(st.month>=0){ ctx.fillStyle=t.sub; ctx.font='400 '+px(W*0.022)+'px system-ui'; ctx.fillText(MONTHS[st.month]+' '+D.year,P,px(H*0.218)); }
+    var areaTop=px(H*(st.month>=0?0.245:0.225));
+    var footTop=px(H*0.855);
+    if(st.month>=0){ drawMonth(ctx,W,H,P,t,areaTop,footTop); } else { drawYear(ctx,W,H,P,t,areaTop,footTop); }
+    drawFooter(ctx,W,H,P,t,footTop);
+  }
+  function holidayOf(m){ return (D.months[m]||[]); }
+  function drawYear(ctx,W,H,P,t,top,bottom){
+    var cols = W>1400?4:3, rows=Math.ceil(12/cols);
+    var gap=px(W*0.018);
+    var availW=W-P*2, cellW=(availW-gap*(cols-1))/cols;
+    var availH=bottom-top-px(H*0.03), cellH=availH/rows;
+    var hol={}; for(var m=0;m<12;m++){ holidayOf(m).forEach(function(x){ hol[m+'-'+x.d]=x.n; }); }
+    for(var i=0;i<12;i++){
+      var c=i%cols, r=Math.floor(i/cols);
+      var x=P+c*(cellW+gap), y=top+r*cellH;
+      ctx.fillStyle=t.cell; rr(ctx,x,y+px(H*0.012),cellW,cellH-px(H*0.024),px(W*0.012)); ctx.fill();
+      ctx.strokeStyle=t.line; ctx.lineWidth=1; ctx.stroke();
+      ctx.fillStyle=t.accent; ctx.font='700 '+px(W*0.0125)+'px system-ui'; ctx.fillText(MONTHS[i],x+px(W*0.012),y+px(H*0.035));
+      var dows=['M','T','W','T','F','S','S'];
+      var gw=(cellW-px(W*0.024))/7;
+      ctx.fillStyle=t.sub; ctx.font='500 '+px(W*0.0072)+'px system-ui';
+      dows.forEach(function(dw,di){ ctx.textAlign='center'; ctx.fillText(dw,x+px(W*0.012)+gw*(di+0.5),y+px(H*0.055)); });
+      var first=new Date(D.year,i,1); var offset=(first.getDay()+6)%7; var dim=new Date(D.year,i+1,0).getDate();
+      for(var dnum=1;dnum<=dim;dnum++){
+        var idx=offset+dnum-1, dx=idx%7, dy=Math.floor(idx/7);
+        var cx=x+px(W*0.012)+gw*(dx+0.5), cy=y+px(H*0.055)+px(H*0.019)*(dy+1.15);
+        var key=i+'-'+dnum;
+        ctx.fillStyle=(hol[key]?t.accent:'rgba(0,0,0,0)');
+        if(hol[key]){ rr(ctx,cx-gw*0.36,cy-px(W*0.008),gw*0.72,px(W*0.0145),px(W*0.004)); ctx.fill(); }
+        ctx.fillStyle=(hol[key]? (st.tpl==='paper'?'#fff7ea':'#06120d') : t.ink);
+        ctx.font='600 '+px(W*0.0078)+'px system-ui';
+        ctx.textAlign='center'; ctx.fillText(String(dnum),cx,cy+px(W*0.0028));
+      }
+      ctx.textAlign='left';
+    }
+  }
+  function drawMonth(ctx,W,H,P,t,top,bottom){
+    var hol={}; holidayOf(st.month).forEach(function(x){ hol[x.d]=x.n; });
+    var gw=(W-P*2)/7, gh=px(H*0.052);
+    var dows=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+    ctx.fillStyle=t.sub; ctx.font='600 '+px(W*0.0095)+'px system-ui';
+    dows.forEach(function(d,i){ ctx.textAlign='center'; ctx.fillText(d,P+gw*(i+0.5),top+px(H*0.012)); });
+    var first=new Date(D.year,st.month,1); var offset=(first.getDay()+6)%7; var dim=new Date(D.year,st.month+1,0).getDate();
+    var rows=Math.ceil((offset+dim)/7);
+    for(var r=0;r<rows;r++){
+      for(var c=0;c<7;c++){
+        var idx=r*7+c, dnum=idx-offset+1;
+        var x=P+c*gw, y=top+px(H*0.03)+r*gh;
+        if(dnum<1||dnum>dim) continue;
+        var isHol=!!hol[dnum];
+        ctx.fillStyle=isHol?t.cell:'rgba(0,0,0,0)';
+        rr(ctx,x+px(W*0.003),y,px(gw)-px(W*0.006),gh-px(H*0.006),px(W*0.007)); ctx.fill();
+        if(isHol){ ctx.strokeStyle=t.accent; ctx.lineWidth=1.5; ctx.stroke(); }
+        ctx.fillStyle=isHol?t.accent:t.ink;
+        ctx.font='700 '+px(W*0.016)+'px system-ui'; ctx.textAlign='left';
+        ctx.fillText(String(dnum),x+px(W*0.012),y+px(H*0.033));
+        if(isHol){
+          ctx.fillStyle=t.sub; ctx.font='500 '+px(W*0.0072)+'px system-ui';
+          var nm=hol[dnum]; var maxw=gw-px(W*0.02);
+          if(ctx.measureText(nm).width>maxw){ while(nm.length>1 && ctx.measureText(nm+'...').width>maxw) nm=nm.slice(0,-1); nm+='...'; }
+          ctx.fillText(nm,x+px(W*0.012),y+px(H*0.047));
+        }
+      }
+    }
+    var ly=top+px(H*0.03)+rows*gh+px(H*0.02);
+    ctx.fillStyle=t.ink; ctx.font='700 '+px(W*0.013)+'px system-ui';
+    var items=holidayOf(st.month);
+    ctx.fillText(items.length? 'Holidays in '+MONTHS[st.month] : 'No public holidays this month',P,ly);
+    var lineH=px(H*0.022);
+    items.slice(0,10).forEach(function(it,i){
+      var cy=ly+lineH*(i+1);
+      ctx.fillStyle=t.accent; ctx.font='600 '+px(W*0.0095)+'px system-ui';
+      ctx.fillText(MONTHS[st.month]+' '+it.d, P, cy);
+      ctx.fillStyle=t.ink; ctx.font='400 '+px(W*0.0095)+'px system-ui';
+      ctx.fillText(it.n, P+px(W*0.075), cy);
+    });
+  }
+  function drawFooter(ctx,W,H,P,t,footTop){
+    ctx.strokeStyle=t.line; ctx.beginPath(); ctx.moveTo(P,footTop); ctx.lineTo(W-P,footTop); ctx.stroke();
+    var url=D.url.replace('https://','');
+    ctx.fillStyle=t.ink; ctx.font='600 '+px(W*0.017)+'px system-ui';
+    ctx.fillText('HolidayKit',P,footTop+px(H*0.035));
+    ctx.fillStyle=t.sub; ctx.font='400 '+px(W*0.0105)+'px system-ui';
+    ctx.fillText(url,P,footTop+px(H*0.058));
+    ctx.fillText('Scan to open the calendar',P,footTop+px(H*0.078));
+    if(st.qr){
+      var qs=px(Math.min(W*0.105,H*0.105)), qx=W-P-qs, qy=footTop+px(H*0.012);
+      ctx.fillStyle='#ffffff'; rr(ctx,qx-px(W*0.006),qy-px(W*0.006),qs+px(W*0.012),qs+px(W*0.012),px(W*0.008)); ctx.fill();
+      ctx.drawImage(st.qr,qx,qy,qs,qs);
+    }
+  }
+  function ensure(){
+    if(modal) return modal;
+    var wrap=document.createElement('div'); wrap.className='share-modal';
+    wrap.innerHTML='<div class="share-panel"><div class="share-head"><strong>Share card</strong>'+
+      '<button type="button" class="share-close" aria-label="Close">x</button></div>'+
+      '<canvas class="share-canvas"></canvas>'+
+      '<div class="share-controls">'+
+      '<label>Range<select data-share-month><option value="-1">Full year</option>'+MONTHS.map(function(m,i){return '<option value="'+i+'">'+m+'</option>';}).join('')+'</select></label>'+
+      '<label>Style<select data-share-tpl>'+Object.keys(TPL).map(function(k){return '<option value="'+k+'">'+k+'</option>';}).join('')+'</select></label>'+
+      '<label>Size<select data-share-size><option value="story">Story 4:5</option><option value="square">Square</option><option value="wide">Wide</option></select></label>'+
+      '</div>'+
+      '<div class="share-btns"><button type="button" class="btn" data-share-dl>Download PNG</button>'+
+      '<button type="button" class="btn ghost" data-share-native>Share</button>'+
+      '<button type="button" class="btn ghost" data-share-copy>Copy image</button></div></div>';
+    document.body.appendChild(wrap); modal=wrap;
+    canvas=wrap.querySelector('.share-canvas');
+    wrap.querySelector('.share-close').addEventListener('click',function(){ wrap.classList.remove('on'); });
+    wrap.addEventListener('click',function(e){ if(e.target===wrap) wrap.classList.remove('on'); });
+    wrap.querySelector('[data-share-month]').addEventListener('change',function(){ st.month=parseInt(this.value,10); draw(); });
+    wrap.querySelector('[data-share-tpl]').addEventListener('change',function(){ st.tpl=this.value; draw(); });
+    wrap.querySelector('[data-share-size]').addEventListener('change',function(){ st.size=this.value; draw(); });
+    wrap.querySelector('[data-share-dl]').addEventListener('click',function(){ dl(); });
+    wrap.querySelector('[data-share-native]').addEventListener('click',function(){ nativeShare(); });
+    wrap.querySelector('[data-share-copy]').addEventListener('click',function(){ copy(); });
+    return wrap;
+  }
+  function toBlob(cb){ canvas.toBlob(function(b){ cb(b); },'image/png'); }
+  function dl(){ toBlob(function(b){ var a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download='holidaykit-'+D.slug+'-'+D.year+'.png'; document.body.appendChild(a); a.click(); setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); },800); }); }
+  function nativeShare(){ toBlob(function(b){ var f=new File([b],'holidaykit.png',{type:'image/png'}); if(navigator.canShare&&navigator.canShare({files:[f]})){ navigator.share({files:[f],title:'HolidayKit',text:D.country+' '+D.year+' holidays'}).catch(function(){}); } else { dl(); } }); }
+  function copy(){ toBlob(function(b){ if(navigator.clipboard&&window.ClipboardItem){ navigator.clipboard.write([new ClipboardItem({'image/png':b})]).then(function(){ alert('Copied image / 图片已复制'); },function(){ dl(); }); } else { dl(); } }); }
+  function open(){ ensure().classList.add('on'); draw(); }
+  qrImg=new Image();
+  qrImg.onload=function(){ st.qr=qrImg; if(modal) draw(); };
+  qrImg.src=D.qr;
+  document.querySelectorAll('[data-share-open]').forEach(function(b){ b.addEventListener('click',function(e){ e.preventDefault(); open(); }); });
+  if(new URLSearchParams(location.search).has('share')) { window.addEventListener('load', open); }
+  window.HK_OPEN_SHARE=open;
+})();
+"""
 
 
 def cn_tables_html(year: int, rest: list[dict], work: list[dict]) -> str:
@@ -2898,6 +3171,14 @@ def main() -> int:
     catalog: dict[str, list[dict]] = defaultdict(list)
     for row in public_rows:
         catalog[row["name"]].append(row)
+
+    # share-card QR codes: one per country pointing at its focus-year page
+    qr_dir = out / "assets" / "qr"
+    qr_dir.mkdir(parents=True, exist_ok=True)
+    make_qr(f"{site_url}/", qr_dir / "root.png")
+    for cc, name, slug in countries:
+        focus = pick_focus_year(by_country[cc].keys(), today)
+        make_qr(f"{site_url}/{slug}/{focus}/", qr_dir / f"{slug}.png")
 
     # index
     (out / "index.html").write_text(
