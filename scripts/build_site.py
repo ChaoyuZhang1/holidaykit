@@ -1082,9 +1082,9 @@ def next_date_from_rows(rows: list[dict], today: date) -> date | None:
 
 
 def ad_unit() -> str:
-    """广告位：未配置 AdSense 时显示占位；配置后输出自适应广告单元。"""
+    """广告位：未配置 AdSense 时输出空占位；配置后输出自适应广告单元。"""
     if not ADSENSE_CLIENT:
-        return '<section class="ad">Ad slot — configure --adsense-client</section>'
+        return '<section class="ad" aria-hidden="true"></section>'
     client = esc(ADSENSE_CLIENT)
     return (
         '<section class="ad"><ins class="adsbygoogle" style="display:block;width:100%" '
@@ -2040,29 +2040,46 @@ def page_year(cc: str, name: str, slug: str, year: int, rows: list[dict], runs: 
         f' title="{month_labels[i]}: {c}"><b>{c or ""}</b></div>'
         for i, c in enumerate(monthly)
     )
+    wk_pct = (weekend_ct / len(rows)) if rows else 0.0
+    donut = (
+        '<div class="donut-wrap">'
+        f'<svg class="vz-donut" data-donut="{wk_pct:.3f}" viewBox="0 0 120 120" aria-hidden="true">'
+        '<circle class="bg" cx="60" cy="60" r="50"></circle>'
+        '<circle class="fg" cx="60" cy="60" r="50" '
+        'style="stroke-dasharray:314.159;stroke-dashoffset:314.159"></circle>'
+        "</svg>"
+        '<div class="donut-txt">'
+        f'<span class="big">{round(wk_pct * 100)}%</span>'
+        f'<span class="muted">of {year} holidays fall on a weekend</span></div></div>'
+        '<div class="vz-legend"><span><i style="background:#34d399"></i>weekend holiday</span>'
+        '<span><i style="background:#94a3b8"></i>weekday holiday</span></div>'
+    )
     viz_html = (
-        '<section class="sec viz-sec"><h2>' + f"{year} at a glance" + "</h2>"
+        f'<section class="sec viz-sec"><h2><span class="sec-h-ico">📊</span>{year} at a glance</h2>'
         '<div class="kpi-row">'
-        f'<div class="kpi"><span class="kpi-n" data-countup="{len(rows)}">0</span>'
-        '<span class="kpi-l">public holidays</span></div>'
-        f'<div class="kpi"><span class="kpi-n" data-countup="{len(runs)}">0</span>'
-        '<span class="kpi-l">long weekends</span></div>'
-        f'<div class="kpi"><span class="kpi-n" data-countup="{weekend_ct}">0</span>'
-        '<span class="kpi-l">fall on weekends</span></div>'
+        f'<div class="kpi"><span class="kpi-ico">🎉</span><span class="kpi-b">'
+        f'<span class="kpi-n" data-countup="{len(rows)}">0</span>'
+        '<span class="kpi-l">public holidays</span></span></div>'
+        f'<div class="kpi"><span class="kpi-ico">🏖️</span><span class="kpi-b">'
+        f'<span class="kpi-n" data-countup="{len(runs)}">0</span>'
+        '<span class="kpi-l">long weekends</span></span></div>'
+        f'<div class="kpi"><span class="kpi-ico">📅</span><span class="kpi-b">'
+        f'<span class="kpi-n" data-countup="{weekend_ct}">0</span>'
+        '<span class="kpi-l">fall on weekends</span></span></div>'
         "</div>"
-        "<h3>Holidays by month</h3>"
+        + donut
+        + '<h3><span class="sec-h-ico">🗓️</span>Holidays by month</h3>'
         f'<div class="vz-wrap"><div class="vz-bars">{bars_html}</div>'
         '<div class="vz-x">' + "".join(f"<span>{m}</span>" for m in month_labels) + "</div></div>"
-        '<div class="vz-legend"><span><i style="background:#34d399"></i>1 public holiday</span>'
-        '<span><i style="background:#0ea5e9"></i>more days off in that month</span></div>'
+        f'<p class="viz-note">Official public holidays in {esc(name)} for {year} — dates, weekdays and the '
+        "long weekends you can build around them with 1–3 days off. Bars show how many holidays fall in each "
+        "month of the year.</p>"
         "</section>"
     )
     body = (
         '<section class="hero">'
         f'<p class="badge">{esc(name)} · {year}</p>'
         f"<h1>{esc(name)} public holidays {year}</h1>"
-        f'<p class="lede">Official public holidays in {esc(name)} for {year}, with weekdays, '
-        "countdowns and the long weekends you can build around them.</p>"
         '<div class="cta-row" style="margin-top:22px">'
         '<button type="button" class="btn-share-hot" data-share-open>'
         '<span aria-hidden="true">✨</span> 生成分享卡片 · Share card</button>'
@@ -2522,6 +2539,20 @@ SHARE_CSS = """
 .donut-txt{display:flex;flex-direction:column;gap:6px}
 .donut-txt .big{font-family:Georgia,serif;font-size:1.9rem;line-height:1}
 .donut-txt .muted{font-size:.78rem}
+/* ── dashboard-style icon cards + bar lists ── */
+.kpi{display:flex;align-items:flex-start;gap:13px}
+.kpi-ico{flex:0 0 auto;width:40px;height:40px;border-radius:12px;display:grid;place-items:center;font-size:1.05rem;line-height:1;background:linear-gradient(135deg,rgba(52,211,153,.20),rgba(34,211,238,.16));border:1px solid rgba(52,211,153,.26)}
+.kpi-b{display:flex;flex-direction:column;min-width:0}
+.hbar{display:flex;align-items:center;gap:12px;margin:11px 0;font-size:.83rem}
+.hbar-h{flex:0 0 34%;display:flex;align-items:center;gap:8px;min-width:0;color:var(--ink-soft)}
+.hbar-h em{font-style:normal;flex:0 0 auto}
+.hbar-h span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hbar-track{flex:1;height:9px;border-radius:999px;background:rgba(15,23,42,.08);overflow:hidden;min-width:60px}
+.hbar-fill{height:100%;border-radius:999px;background:linear-gradient(90deg,#34d399,#22d3ee);transform-origin:left;animation:vzGrowX 1s cubic-bezier(.2,.75,.25,1) both}
+.hbar-v{flex:0 0 auto;min-width:30px;text-align:right;font-variant-numeric:tabular-nums;color:var(--ink-soft);font-size:.8rem}
+.viz-note{color:var(--muted);font-size:.86rem;line-height:1.65;margin:16px 0 0;max-width:72ch}
+.sec-h-ico{display:inline-grid;place-items:center;width:26px;height:26px;border-radius:8px;background:rgba(52,211,153,.15);font-size:.9rem;margin-right:10px;vertical-align:-4px}
+@media (max-width:640px){.hbar-h{flex-basis:42%}.viz-note{font-size:.82rem}}
 /* country card sparkline + countdown progress */
 .spark{display:flex;align-items:flex-end;gap:2px;height:26px;margin:8px 0 2px}
 .spark i{flex:1;min-height:2px;border-radius:2px 2px 1px 1px;background:linear-gradient(180deg,#34d399,#0ea5e9);transform-origin:bottom;animation:vzGrow .8s cubic-bezier(.2,.75,.25,1) both}
@@ -2987,14 +3018,17 @@ def page_compare(a: tuple, b: tuple, year: int, rows_a: list[dict], rows_b: list
         )
 
     viz = (
-        '<section class="sec"><h2>Head-to-head numbers</h2>'
+        '<section class="sec"><h2><span class="sec-h-ico">⚖️</span>Head-to-head numbers</h2>'
         '<div class="kpi-row">'
-        f'<div class="kpi"><span class="kpi-n" data-countup="{len(rows_a)}">0</span>'
-        f'<span class="kpi-l">{esc(a_name)} holidays</span></div>'
-        f'<div class="kpi"><span class="kpi-n" data-countup="{len(rows_b)}">0</span>'
-        f'<span class="kpi-l">{esc(b_name)} holidays</span></div>'
-        f'<div class="kpi"><span class="kpi-n" data-countup="{len(common)}">0</span>'
-        '<span class="kpi-l">same-date overlaps</span></div>'
+        f'<div class="kpi"><span class="kpi-ico">🎉</span><span class="kpi-b">'
+        f'<span class="kpi-n" data-countup="{len(rows_a)}">0</span>'
+        f'<span class="kpi-l">{esc(a_name)} holidays</span></span></div>'
+        f'<div class="kpi"><span class="kpi-ico">🎊</span><span class="kpi-b">'
+        f'<span class="kpi-n" data-countup="{len(rows_b)}">0</span>'
+        f'<span class="kpi-l">{esc(b_name)} holidays</span></span></div>'
+        f'<div class="kpi"><span class="kpi-ico">🎯</span><span class="kpi-b">'
+        f'<span class="kpi-n" data-countup="{len(common)}">0</span>'
+        '<span class="kpi-l">same-date overlaps</span></span></div>'
         "</div>"
         '<div class="vz-cmp">'
         + _cmp_row("Public holidays", len(rows_a), len(rows_b))
@@ -3004,13 +3038,14 @@ def page_compare(a: tuple, b: tuple, year: int, rows_a: list[dict], rows_b: list
         '<div class="vz-legend">'
         f'<span><i style="background:#34d399"></i>{esc(a_name)}</span>'
         f'<span><i style="background:#f59e0b"></i>{esc(b_name)}</span>'
-        "</div></section>"
+        "</div>"
+        f'<p class="viz-note">Side-by-side public holidays: {len(rows_a)} in {esc(a_name)}, '
+        f"{len(rows_b)} in {esc(b_name)}, {len(common)} on the same date. Longer bars mean more of that "
+        "number in the given year.</p></section>"
     )
     body = (
         '<section class="hero"><p class="eyebrow">Country comparison</p>'
         f"<h1>{esc(a_name)} vs {esc(b_name)} holidays {year}</h1>"
-        f'<p class="lede">Side-by-side public holidays: {len(rows_a)} in {esc(a_name)}, '
-        f"{len(rows_b)} in {esc(b_name)}, {len(common)} on the same date.</p>"
         '<div class="chips">'
         f'<span class="chip">{esc(a_name)}: {len(rows_a)} holidays</span>'
         f'<span class="chip">{esc(b_name)}: {len(rows_b)} holidays</span>'
@@ -3228,6 +3263,8 @@ def page_holiday(kind: str, slug: str, name: str, rows: list[dict], site_url: st
                 "</div>"
                 f'<div class="countdown" data-date="{esc(nxt.isoformat())}"><span data-countdown></span></div>'
                 "</div>"
+                '<div class="vz-legend"><span>🌍 ' + str(len(countries)) + " countries</span>"
+                "<span>📅 next " + esc(next_label) + "</span></div>"
             )
         title = f"Days Until {name} — Live Countdown | {SITE_NAME}"
         description = f"Countdown to the next {name} ({next_label}). Dates by country and calendar links."
@@ -3247,8 +3284,10 @@ def page_holiday(kind: str, slug: str, name: str, rows: list[dict], site_url: st
     ]
     body = (
         '<section class="hero">'
-        f"<h1>{esc(h1)}</h1>"
-        f'<p class="lede">{esc(lede)}</p>' + box + "</section>"
+        f"<h1>{esc(h1)}</h1>" + box
+        + (f'<p class="viz-note">{esc(lede)}</p>' if kind == "countdown"
+           else f'<p class="lede">{esc(lede)}</p>')
+        + "</section>"
         '<section class="sec"><h2>Upcoming dates</h2>' + table + "</section>"
         '<section class="ad">[Ad slot]</section>'
         '<section class="sec"><h2>Observed in</h2><p>' + country_links + "</p></section>"
