@@ -1536,6 +1536,10 @@ def nav_html(base: str) -> str:
     return (
         '<header class="site-head"><div class="wrap head-inner">'
         f'<a class="brand" href="{base}index.html"><span class="brand-mark">◷</span>{SITE_NAME}</a>'
+        '<button type="button" class="nav-search" data-search-open aria-label="Search">'
+        '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+        'stroke-width="1.9" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6.5"/>'
+        '<path d="M15.5 15.5L21 21"/></svg><span>Search</span><kbd>⌘K</kbd></button>'
         "<nav>"
         f'<a href="{base}index.html#countries" data-i18n="nav.countries">Countries</a>'
         f'<a href="{base}holidays/index.html" data-i18n="nav.guides">Holiday guides</a>'
@@ -1592,6 +1596,131 @@ def footer_html(base: str, verified: str) -> str:
     )
 
 
+SEARCH_CSS = """
+.nav-search{display:inline-flex;align-items:center;gap:7px;background:transparent;border:1px solid var(--line);
+  border-radius:999px;padding:7px 13px;font-size:.82rem;color:var(--muted);cursor:pointer;font-family:inherit}
+.nav-search:hover{color:var(--ink);border-color:var(--ink)}
+.nav-search kbd{font-family:inherit;font-size:.7rem;border:1px solid var(--line);border-radius:5px;padding:1px 5px;opacity:.8}
+.srch{position:fixed;inset:0;z-index:95;background:rgba(12,16,22,.55);backdrop-filter:blur(6px);display:none;align-items:flex-start;justify-content:center;padding:9vh 16px 16px}
+.srch.on{display:flex}
+.srch-panel{width:100%;max-width:640px;background:var(--surface,#fff);border:1px solid var(--line);border-radius:16px;
+  box-shadow:0 30px 80px rgba(12,16,22,.32);overflow:hidden}
+.srch-top{display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid var(--line)}
+.srch-top svg{flex:none;opacity:.55}
+.srch input{flex:1;border:0;outline:0;background:transparent;font:inherit;font-size:1rem;color:inherit}
+.srch-esc{font-size:.72rem;color:var(--muted);border:1px solid var(--line);border-radius:6px;padding:2px 6px}
+.srch-list{max-height:56vh;overflow:auto;padding:6px}
+.srch-item{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:10px;text-decoration:none;color:inherit;cursor:pointer}
+.srch-item:hover,.srch-item.sel{background:rgba(15,23,42,.055)}
+.srch-k{font-size:.62rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#0f766e;
+  background:rgba(15,118,110,.10);border-radius:6px;padding:3px 7px;flex:none;min-width:58px;text-align:center}
+.srch-t{font-size:.95rem;font-weight:600;line-height:1.25}
+.srch-s{font-size:.78rem;color:var(--muted)}
+.srch-empty{padding:22px 16px;color:var(--muted);font-size:.9rem}
+@media(max-width:720px){.nav-search span,.nav-search kbd{display:none}.nav-search{padding:7px 10px}}
+"""
+
+SEARCH_JS = r"""
+(function(){
+  var BASE=window.HK_BASE||'/';
+  var idx=null, sel=-1, loading=false;
+  var PH={zh:'搜索国家、节日、年份…',ja:'国・祝日・年を検索…',ko:'국가, 공휴일, 연도 검색…',
+    es:'Buscar países, festivos, años…',fr:'Rechercher pays, jours fériés, années…',
+    de:'Länder, Feiertage, Jahre suchen…'};
+  function lang(){return (document.documentElement.lang||'en').slice(0,2);}
+  function build(){
+    var box=document.createElement('div'); box.className='srch'; box.id='hk-srch';
+    box.innerHTML='<div class="srch-panel"><div class="srch-top">'
+      +'<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5L21 21"/></svg>'
+      +'<input type="text" autocomplete="off" spellcheck="false" placeholder="'+(PH[lang()]||'Search countries, holidays, years…')+'">'
+      +'<span class="srch-esc">ESC</span></div><div class="srch-list"></div></div>';
+    document.body.appendChild(box);
+    box.addEventListener('click',function(e){ if(e.target===box) close(); });
+    var input=box.querySelector('input');
+    input.addEventListener('input',function(){ render(input.value); });
+    input.addEventListener('keydown',function(e){
+      if(e.key==='Escape'){ close(); }
+      else if(e.key==='ArrowDown'){ e.preventDefault(); move(1); }
+      else if(e.key==='ArrowUp'){ e.preventDefault(); move(-1); }
+      else if(e.key==='Enter'){ e.preventDefault();
+        var a=box.querySelector('.srch-item.sel')||box.querySelector('.srch-item');
+        if(a) location.href=a.getAttribute('href'); }
+    });
+    return box;
+  }
+  function load(cb){
+    if(idx){ cb(); return; }
+    if(loading) return;
+    loading=true;
+    fetch(BASE+'search-index.json').then(function(r){return r.json();}).then(function(d){
+      idx=d; loading=false; cb();
+    }).catch(function(){
+      loading=false;
+      var box=document.getElementById('hk-srch');
+      if(box) box.querySelector('.srch-list').innerHTML='<div class="srch-empty">Search is unavailable right now — browse the country list instead.</div>';
+    });
+  }
+  function score(it,q){
+    var t=(it.t||'').toLowerCase(), sub=(it.s||'').toLowerCase();
+    if(t===q) return 100;
+    if(t.indexOf(q)===0) return 90;
+    if(t.indexOf(q)>-1) return 70;
+    if(sub.indexOf(q)>-1) return 45;
+    var parts=q.split(/\s+/).filter(Boolean), ok=true;
+    for(var i=0;i<parts.length;i++){ if(t.indexOf(parts[i])<0 && sub.indexOf(parts[i])<0){ ok=false; break; } }
+    return ok?35:0;
+  }
+  function render(q){
+    var box=document.getElementById('hk-srch');
+    if(!box) return;
+    var list=box.querySelector('.srch-list');
+    q=(q||'').trim().toLowerCase();
+    if(!idx){ list.innerHTML='<div class="srch-empty">Loading…</div>'; return; }
+    var res=idx.map(function(it){ return {it:it, s:q?score(it,q):1}; })
+      .filter(function(r){ return r.s>0; })
+      .sort(function(a,b){ return b.s-a.s; })
+      .slice(0,10);
+    if(!res.length){ list.innerHTML='<div class="srch-empty">No matches.</div>'; sel=-1; return; }
+    var root=BASE.replace(/[^/]*$/,'');
+    list.innerHTML=res.map(function(r){
+      return '<a class="srch-item" href="'+root+r.it.u.replace(/^\//,'')+'">'
+        +'<span class="srch-k">'+(r.it.k||'page')+'</span><span><span class="srch-t">'+r.it.t
+        +'</span><br><span class="srch-s">'+(r.it.s||'')+'</span></span></a>';
+    }).join('');
+    sel=-1;
+  }
+  function move(d){
+    var nodes=document.querySelectorAll('.srch-item'); if(!nodes.length) return;
+    if(sel>=0) nodes[sel].classList.remove('sel');
+    sel=(sel+d+nodes.length)%nodes.length;
+    nodes[sel].classList.add('sel');
+    nodes[sel].scrollIntoView({block:'nearest'});
+  }
+  function open(){
+    var box=document.getElementById('hk-srch')||build();
+    box.classList.add('on');
+    load(function(){ render(box.querySelector('input').value); });
+    box.querySelector('input').focus();
+  }
+  function close(){
+    var box=document.getElementById('hk-srch');
+    if(box) box.classList.remove('on');
+  }
+  window.HK_SEARCH_OPEN=open;
+  var _q=new URLSearchParams(location.search).get('q');
+  if(_q){ setTimeout(function(){ open(); var i=document.getElementById('hk-srch').querySelector('input'); i.value=_q; render(_q); }, 400); }
+  document.addEventListener('click',function(e){
+    var t=e.target.closest?e.target.closest('[data-search-open]'):null;
+    if(t){ e.preventDefault(); open(); }
+  });
+  document.addEventListener('keydown',function(e){
+    if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='k'){ e.preventDefault(); open(); }
+    else if(e.key==='/' && !/input|textarea|select/i.test((document.activeElement||{}).tagName||'')){ e.preventDefault(); open(); }
+  });
+})();
+"""
+
+
 def render_page(*, title: str, description: str, canonical: str, base: str,
                 body: str, verified: str, json_ld: str = "",
                 cta_href: str = "", cta_label: str = "Browse countries",
@@ -1612,8 +1741,25 @@ def render_page(*, title: str, description: str, canonical: str, base: str,
         '<link rel="icon" href="/favicon.svg" type="image/svg+xml">'
         f'<link rel="sitemap" type="application/xml" href="{base}sitemap.xml">'
         + alternates
-        + f"<style>{CSS}{CSS2}{SHARE_CSS}</style>"
+        + f"<style>{CSS}{CSS2}{SHARE_CSS}{SEARCH_CSS}</style>"
     )
+    _site_ld = json.dumps(
+        {
+            "@context": "https://schema.org",
+            "@type": "WebSite",
+            "name": SITE_NAME,
+            "url": SITE_URL + "/",
+            "description": SITE_TAGLINE,
+            "potentialAction": {
+                "@type": "SearchAction",
+                "target": {"@type": "EntryPoint",
+                           "urlTemplate": SITE_URL + "/?q={search_term_string}"},
+                "query-input": "required name=search_term_string",
+            },
+        },
+        ensure_ascii=False,
+    )
+    head += f'<script type="application/ld+json">{_site_ld}</script>'
     if ADSENSE_CLIENT:
         head += (
             f'<meta name="google-adsense-account" content="ca-{esc(ADSENSE_CLIENT)}">'
@@ -1654,6 +1800,8 @@ def render_page(*, title: str, description: str, canonical: str, base: str,
         + f"<script>{CAL_JS}</script>"
         + f"<script>{MOTION_JS}</script>"
         + (f"<script>{extra_js}</script>" if extra_js else "")
+        + f'<script>window.HK_BASE="{base}";</script>'
+        + f"<script>{SEARCH_JS}</script>"
         + f"<script>{PAGE_SHARE_JS}</script>"
         + "</body></html>"
     )
@@ -2428,7 +2576,13 @@ def page_year(cc: str, name: str, slug: str, year: int, rows: list[dict], runs: 
         + (cn_summary_html(year) if cc == "CN" else "")
         + subscribe_block(cc, name, slug, year, site_url)
         + affiliate_block(name)
-        + f'<p><a href="../index.html">← {esc(name)} overview</a></p>'
+        + '<section class="sec"><h2>Keep planning</h2><div class="chips">'
+        + f'<a class="chip" href="long-weekends/index.html">{year} long weekends</a>'
+        + f'<a class="chip" href="../../compare/index.html?a={cc}&b=US">Compare {esc(name)} vs US</a>'
+        + f'<a class="chip" href="../../days-until/index.html">Holiday countdowns</a>'
+        + f'<a class="chip" href="../../api/index.html">Free JSON API</a>'
+        + '</div>'
+        f'<p><a href="../index.html">← {esc(name)} overview</a></p>'
     )
     faq = [
         (f"Does {name} have holidays on weekends in {year}?",
@@ -4370,7 +4524,8 @@ def main() -> int:
     (out / "_headers").write_text(
         "/api/v1/*\n  Access-Control-Allow-Origin: *\n  Cache-Control: public, max-age=86400\n"
         "/assets/support/*\n  Cache-Control: public, max-age=604800\n"
-        "/widget.js\n  Cache-Control: public, max-age=86400\n",
+        "/widget.js\n  Cache-Control: public, max-age=86400\n"
+        "/search-index.json\n  Cache-Control: public, max-age=3600\n",
         encoding="utf-8",
     )
     support_dir = ROOT / "assets" / "support"
@@ -4428,6 +4583,40 @@ def main() -> int:
         page_static("about", f"About {SITE_NAME}", about, site_url, verified), encoding="utf-8"
     )
     urls.extend([("privacy/", "0.2"), ("about/", "0.2")])
+
+    # ── site search index ──
+    search_entries: list[dict] = []
+    for cc, name, slug in countries:
+        search_entries.append({"t": name, "s": "Public holidays 2025–2028",
+                               "u": f"/{slug}/", "k": "country"})
+        for y in sorted(by_country[cc].keys()):
+            search_entries.append({"t": f"{name} {y}", "s": f"{y} public holidays",
+                                   "u": f"/{slug}/{y}/", "k": "year"})
+    for hslug, hname in top_items:
+        search_entries.append({"t": hname, "s": "Holiday guide — dates by country",
+                               "u": f"/holidays/{hslug}/", "k": "holiday"})
+        search_entries.append({"t": f"When is {hname}", "s": "Live countdown",
+                               "u": f"/days-until/{hslug}/", "k": "countdown"})
+    for _slug, _name in (school_items if SCHOOL_DATA else []):
+        search_entries.append({"t": f"{_name} school holidays", "s": "School break dates",
+                               "u": f"/school-holidays/{_slug}/", "k": "school"})
+    for _path, _title, _sub in [
+        ("compare/", "Compare two countries", "Side-by-side holiday comparison"),
+        ("holidays/", "Holiday guides", "Every major public holiday"),
+        ("days-until/", "Countdowns", "Days until each holiday"),
+        ("school-holidays/", "School holidays", "Global school break calendar"),
+        ("api/", "Free JSON API", "Static holiday data, CORS, no key"),
+        ("embed/", "Embed widget", "Put the calendar on your site"),
+        ("premium/", "Premium", "Multi-country planner"),
+        ("about/", "About", "Data sources and method"),
+        ("support/", "Support", "Keep the project free"),
+    ]:
+        search_entries.append({"t": _title, "s": _sub, "u": f"/{_path}", "k": "page"})
+    for _lang in HOME_I18N:
+        search_entries.append({"t": f"HolidayKit {_lang.upper()}", "s": "Localized home page",
+                               "u": f"/{_lang}/", "k": "page"})
+    (out / "search-index.json").write_text(
+        json.dumps(search_entries, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
 
     # sitemap + robots
     # full URL list (manual submission / debugging)
