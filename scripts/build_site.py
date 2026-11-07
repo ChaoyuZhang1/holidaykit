@@ -671,6 +671,187 @@ HOME_CAL_JS = r"""
 })();
 """
 
+HOME_NEXT_JS = r"""
+(function(){
+  var root = document.getElementById('hk-home-next');
+  if (!root) return;
+  var MAP = window.HK_NEXT || {};
+  var nameEl = root.querySelector('[data-hn-name]');
+  var dateEl = root.querySelector('[data-hn-date]');
+  var daysEl = root.querySelector('[data-hn-days]');
+  var barEl = root.querySelector('[data-hn-bar]');
+  var linkEl = root.querySelector('[data-hn-link]');
+  function apply(cc){
+    var m = MAP[cc];
+    if (!m) return;
+    var when = new Date(m.d + 'T00:00:00');
+    var now = new Date();
+    now.setHours(0, 0, 0, 0);
+    var days = Math.max(0, Math.round((when - now) / 86400000));
+    if (nameEl) nameEl.textContent = m.n;
+    if (dateEl) dateEl.textContent = when.toLocaleDateString(undefined, {year:'numeric', month:'short', day:'numeric'}) + ' · ' + (m.cn || cc);
+    if (daysEl) daysEl.textContent = String(days);
+    if (barEl) barEl.style.width = Math.max(4, Math.min(100, Math.round(100 - days / 365 * 100))) + '%';
+    if (linkEl && m.s) linkEl.setAttribute('href', m.s + '/index.html');
+    root.setAttribute('data-country', cc);
+  }
+  fetch('/geo').then(function(r){ return r.ok ? r.json() : null; }).then(function(g){
+    if (g && g.country && MAP[g.country]) apply(g.country);
+  }).catch(function(){});
+})();
+"""
+
+HOME_COMPARE_JS = r"""
+(function(){
+  var data = window.HK_COMPARE;
+  if (!data || !data.countries || !data.countries.length) return;
+  var root = document.getElementById('hk-compare');
+  if (!root) return;
+  var selectA = root.querySelector('[data-cm-a]');
+  var selectB = root.querySelector('[data-cm-b]');
+  var out = root.querySelector('[data-cm-out]');
+  var by = {};
+  data.countries.forEach(function(c){ by[c.c] = c; });
+  function opt(c){
+    var o = document.createElement('option');
+    o.value = c.c; o.textContent = c.n + ' (' + c.y + ')';
+    return o;
+  }
+  var sorted = data.countries.slice().sort(function(x, y){ return x.n.localeCompare(y.n); });
+  sorted.forEach(function(c){ selectA.appendChild(opt(c)); selectB.appendChild(opt(c)); });
+  function escHtml(t){
+    return String(t == null ? '' : t).replace(/[&<>"]/g, function(ch){
+      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch];
+    });
+  }
+  function fmt(iso){
+    if (!iso) return null;
+    var d = new Date(iso + 'T00:00:00');
+    return d.toLocaleDateString(undefined, {month:'short', day:'numeric'});
+  }
+  function hlist(c){
+    return (c.h || []).map(function(row){
+      return { d: row[0], n: row[1] || '', l: row[2] || row[1] || '' };
+    });
+  }
+  function months(list){
+    var m = [0,0,0,0,0,0,0,0,0,0,0,0];
+    list.forEach(function(row){ m[parseInt(row.d.slice(5, 7), 10) - 1] += 1; });
+    return m;
+  }
+  function weekend(list){
+    return list.filter(function(row){
+      var w = new Date(row.d + 'T00:00:00').getDay();
+      return w === 0 || w === 6;
+    }).length;
+  }
+  function norm(name){ return String(name || '').toLowerCase().replace(/\s+/g, ' ').trim(); }
+  var MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var COLORS = ['#34d399', '#f59e0b'];
+  function render(){
+    var a = by[selectA.value], b = by[selectB.value];
+    if (!a || !b) return;
+    if (a.c === b.c) { out.innerHTML = '<p class="cm-note">Pick two different countries.</p>'; return; }
+    var la = hlist(a), lb = hlist(b);
+    var ma = months(la), mb = months(lb);
+    var peak = Math.max.apply(null, ma.concat(mb).concat([1]));
+    var datesA = {}, datesB = {};
+    la.forEach(function(r){ datesA[r.d] = r; });
+    lb.forEach(function(r){ datesB[r.d] = r; });
+    var strict = 0;
+    Object.keys(datesA).forEach(function(d){ if (datesB[d]) strict += 1; });
+    function barCol(arr, cls){
+      return arr.map(function(v){
+        var h = v ? Math.max(7, Math.round(v / peak * 100)) : 0;
+        return '<i class="' + cls + '" style="height:' + h + '%"></i>';
+      }).join('');
+    }
+    var barA = barCol(ma, 'a'), barB = barCol(mb, 'b');
+    function barGroups(){
+      var out = '';
+      for (var k = 0; k < 12; k++) {
+        out += '<div class="cm-m"><i class="a" style="height:' + barH(ma[k]) + '%"></i>'
+          + '<i class="b" style="height:' + barH(mb[k]) + '%"></i></div>';
+      }
+      return out;
+    }
+    function barH(v){
+      return v ? Math.max(7, Math.round(v / peak * 100)) : 0;
+    }
+    var xlab = MONTHS.map(function(t){ return '<span>' + t + '</span>'; }).join('');
+    var rows = '';
+    var seenA = {}, seenB = {};
+    la.forEach(function(r){ seenA[norm(r.n)] = r; });
+    lb.forEach(function(r){ seenB[norm(r.n)] = r; });
+    var names = {};
+    function labelOf(r){ return r.l && r.l !== r.n ? r.n + ' · ' + r.l : r.n; }
+    la.forEach(function(r){ names[norm(r.n)] = labelOf(r); });
+    lb.forEach(function(r){ names[norm(r.n)] = names[norm(r.n)] || labelOf(r); });
+    var keys = Object.keys(names).sort();
+    var onlyA = 0, onlyB = 0, both = 0;
+    keys.forEach(function(k){
+      var ra = seenA[k], rb = seenB[k];
+      if (ra && rb) both += 1;
+      else if (ra) onlyA += 1;
+      else onlyB += 1;
+      var label = escHtml(names[k]);
+      var ca = ra ? '<td>' + fmt(ra.d) + '</td>' : '<td class="miss">—</td>';
+      var cb = rb ? '<td>' + fmt(rb.d) + '</td>' : '<td class="miss">—</td>';
+      rows += '<tr><td>' + label + '</td>' + ca + cb + '</tr>';
+    });
+    if (keys.length > 40) {
+      rows = rows.split('</tr>').slice(0, 40).join('</tr>') + '</tr>';
+    }
+    var wa = weekend(la), wb = weekend(lb);
+    out.innerHTML =
+      '<div class="kpi-row">' +
+        '<div class="kpi"><span class="kpi-ico">🎉</span><span class="kpi-b"><span class="kpi-n" data-static="' + la.length + '">' + la.length + '</span>' +
+          '<span class="kpi-l">' + escHtml(a.n) + ' holidays</span></span></div>' +
+        '<div class="kpi"><span class="kpi-ico">🎊</span><span class="kpi-b"><span class="kpi-n" data-static="' + lb.length + '">' + lb.length + '</span>' +
+          '<span class="kpi-l">' + escHtml(b.n) + ' holidays</span></span></div>' +
+        '<div class="kpi"><span class="kpi-ico">🎯</span><span class="kpi-b"><span class="kpi-n" data-static="' + both + '">' + both + '</span>' +
+          '<span class="kpi-l">same-name holidays</span></span></div>' +
+      '</div>' +
+      '<div class="cm-card"><h2>Holidays by month</h2>' +
+        '<p class="cm-sub">' + escHtml(a.n) + ' vs ' + escHtml(b.n) + ' in ' + a.y + ' — how the holidays spread across the year.</p>' +
+        '<div class="cm-bars">' + barGroups() + '</div>' +
+        '<div class="cm-x">' + xlab + '</div>' +
+        '<div class="vz-legend"><span><i style="background:' + COLORS[0] + '"></i>' + escHtml(a.n) + '</span>' +
+          '<span><i style="background:' + COLORS[1] + '"></i>' + escHtml(b.n) + '</span>' +
+          '<span>Weekend holidays: ' + wa + ' vs ' + wb + ' · same date: ' + strict + '</span></div>' +
+      '</div>' +
+      '<div class="cm-card"><h2>Key holidays side by side</h2>' +
+        '<p class="cm-sub">' + both + ' shared by name · ' + onlyA + ' only in ' + escHtml(a.n) + ' · ' + onlyB + ' only in ' + escHtml(b.n) + '.</p>' +
+        '<table class="cm-table"><thead><tr><th>Holiday</th><th>' + escHtml(a.c) + '</th><th>' + escHtml(b.c) + '</th></tr></thead>' +
+        '<tbody>' + rows + '</tbody></table>' +
+      '</div>';
+    var url = new URL(window.location.href);
+    url.searchParams.set('a', a.c);
+    url.searchParams.set('b', b.c);
+    history.replaceState(null, '', url.pathname + '?' + url.searchParams.toString());
+  }
+  function pickRandom(exclude){
+    var pool = data.countries.filter(function(c){ return c.c !== exclude; });
+    return pool[Math.floor(Math.random() * pool.length)].c;
+  }
+  selectA.addEventListener('change', render);
+  selectB.addEventListener('change', render);
+  var qs = new URLSearchParams(window.location.search);
+  var qa = qs.get('a'), qb = qs.get('b');
+  if (qa && by[qa]) selectA.value = qa; else selectA.value = (by.US ? 'US' : sorted[0].c);
+  if (qb && by[qb] && qb !== selectA.value) selectB.value = qb;
+  else selectB.value = pickRandom(selectA.value);
+  render();
+  fetch('/geo').then(function(r){ return r.ok ? r.json() : null; }).then(function(g){
+    if (!g || !g.country || !by[g.country]) return;
+    if (qs.get('a')) return;
+    if (g.country === selectB.value) selectB.value = pickRandom(g.country);
+    selectA.value = g.country;
+    render();
+  }).catch(function(){});
+})();
+"""
+
 # UI i18n (chrome strings only; holiday names stay in their original/local form)
 I18N_JS = r"""
 (function(){
@@ -1829,6 +2010,19 @@ def page_index(countries: list[tuple[str, str, str]], by_country, site_url: str,
     default_year = pick_focus_year(by_country[default_cc].keys(), today)
     default_rows = by_country[default_cc].get(cal_year) or by_country[default_cc][default_year]
     fallback_cal = single_month_html(cal_year, cal_month, default_rows)
+    next_map = {}
+    for _cc, _cname, _cslug in countries:
+        _rows = [r for _y in by_country[_cc] for r in by_country[_cc][_y]]
+        _nxt = next_date_from_rows(_rows, today)
+        if not _nxt:
+            continue
+        _nm = next((r.get("name") for r in _rows if r.get("date") == _nxt.isoformat()),
+                   "Public holiday")
+        next_map[_cc] = {"d": _nxt.isoformat(), "n": _nm, "cn": _cname, "s": _cslug}
+    _def_cc = default_cc if default_cc in next_map else next(iter(next_map))
+    _def = next_map[_def_cc]
+    _def_days = max(0, (date.fromisoformat(_def["d"]) - today).days)
+    _def_pct = max(4, min(100, round(100 - _def_days / 365 * 100)))
     feature_card = (
         f'<aside class="hero-cal" id="hk-home-cal" data-default-country="{default_cc}">'
         '<div class="cal-toolbar">'
@@ -1839,6 +2033,19 @@ def page_index(countries: list[tuple[str, str, str]], by_country, site_url: str,
         '<div class="cal-single" data-cal-body>' + fallback_cal + "</div>"
         '<div class="cal-foot"><span class="cal-country" data-cal-country>' + esc(default_name) + "</span>"
         f'<span>·</span><a data-cal-link href="{default_slug}/index.html" data-i18n="cal.open">Open full calendar</a></div>'
+        "</aside>"
+    )
+    next_card = (
+        f'<aside class="hero-next" id="hk-home-next" data-country="{_def_cc}">'
+        '<div class="hn-top"><span aria-hidden="true">⏳</span><span>下一个假期 · Next holiday</span></div>'
+        f'<h3 data-hn-name>{esc(_def["n"])}</h3>'
+        f'<div class="hn-date" data-hn-date>{esc(fmt_date(date.fromisoformat(_def["d"])))} · '
+        f'{esc(_def["cn"])}</div>'
+        '<div class="hn-days">'
+        f'<span class="hn-num" data-hn-days>{_def_days}</span>'
+        '<span class="hn-lbl">天后 · days to go</span></div>'
+        f'<span class="prog" aria-hidden="true"><i data-hn-bar style="width:{_def_pct}%"></i></span>'
+        f'<a class="hn-link" data-hn-link href="{_def["s"]}/index.html">打开日历 · Open calendar →</a>'
         "</aside>"
     )
     body = (
@@ -1859,7 +2066,7 @@ def page_index(countries: list[tuple[str, str, str]], by_country, site_url: str,
         '<div class="lbl" data-i18n="stats.holidays">Holidays</div></div>'
         f'<div class="stat"><div class="num">{esc(year_label)}</div>'
         '<div class="lbl" data-i18n="stats.years">Years covered</div></div>'
-        "</div></div>" + feature_card + "</div></section>"
+        "</div></div><div class=\"hero-side\">" + feature_card + next_card + "</div></div></section>"
         '<section class="sec" id="countries"><h2 data-i18n="sec.browse">Browse countries</h2>'
         '<p class="sub" data-i18n="sec.browse.sub">Every holiday, long weekend and bridge day, country by country.</p>'
         '<div class="grid">' + "".join(cards) + "</div></section>"
@@ -1895,7 +2102,11 @@ def page_index(countries: list[tuple[str, str, str]], by_country, site_url: str,
         body=body,
         verified=verified,
         json_ld=faq_json_ld(faq),
-        extra_js=HOME_CAL_JS,
+        extra_js=HOME_CAL_JS
+        + "window.HK_NEXT="
+        + json.dumps(next_map, ensure_ascii=False, separators=(",", ":"))
+        + ";"
+        + HOME_NEXT_JS,
         alternates=hreflang_links(site_url),
     )
 
@@ -2482,6 +2693,61 @@ def share_payload(cc: str, name: str, slug: str, year: int, rows: list[dict], si
 
 
 SHARE_CSS = """
+/* homepage next-holiday countdown */
+.hero-side{display:flex;flex-direction:column;gap:14px;min-width:0}
+.hero-next{border:0;border-radius:18px;padding:18px 20px;color:#e2e8f0;
+  background:linear-gradient(150deg,#0f172a 0%,#111827 55%,#0b3b33 100%);
+  box-shadow:0 18px 40px -24px rgba(2,6,23,.7)}
+.hero-next .hn-top{display:flex;align-items:center;gap:8px;font-size:.7rem;letter-spacing:.09em;
+  text-transform:uppercase;color:#94a3b8}
+.hero-next h3{font-size:1.02rem;line-height:1.3;margin:8px 0 3px;color:#f8fafc}
+.hero-next .hn-date{font-size:.78rem;color:#94a3b8}
+.hero-next .hn-days{display:flex;align-items:baseline;gap:9px;margin-top:10px}
+.hero-next .hn-num{font-size:2.35rem;line-height:1;font-weight:700;color:#34d399;
+  font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.hero-next .hn-lbl{font-size:.72rem;color:#94a3b8}
+.hero-next .prog{background:rgba(148,163,184,.24);margin-top:12px}
+.hero-next .hn-link{display:inline-block;margin-top:11px;font-size:.78rem;color:#67e8f9;text-decoration:none}
+.hero-next .hn-link:hover{text-decoration:underline}
+/* holiday guide cards: metrics */
+.gmeta{display:flex;justify-content:space-between;gap:8px;font-size:.7rem;color:var(--muted);margin-top:6px}
+.gspark{display:flex;align-items:flex-end;gap:2px;height:22px;margin:8px 0 0}
+.gspark i{flex:1;min-height:2px;border-radius:2px 2px 0 0;
+  background:linear-gradient(180deg,#38bdf8,#0ea5e9);transform-origin:bottom;
+  animation:vzGrow .8s cubic-bezier(.2,.75,.25,1) both}
+/* interactive comparison */
+.cm-pick{display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end;margin:6px 0 20px}
+.cm-pick label{display:flex;flex-direction:column;gap:6px;font-size:.76rem;font-weight:600}
+.cm-pick select{padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:#fff;
+  font:inherit;min-width:230px}
+.cm-card{border:1px solid var(--line);border-radius:16px;padding:18px;background:#fff;margin:0 0 16px}
+.cm-card h2{font-size:1rem;margin:0 0 2px}
+.cm-sub{font-size:.78rem;color:var(--muted);margin:0 0 12px}
+.cm-bars{display:grid;grid-template-columns:repeat(12,1fr);gap:7px;align-items:end;height:150px}
+.cm-m{display:flex;flex-direction:row;align-items:flex-end;gap:2px;height:100%}
+.cm-m i{flex:1;display:block;border-radius:3px 3px 0 0;transform-origin:bottom;
+  animation:vzGrow .8s cubic-bezier(.2,.75,.25,1) both}
+.cm-table td.miss{color:#cbd5e1}
+.cm-m i.a{background:linear-gradient(180deg,#34d399,#059669)}
+.cm-m i.b{background:linear-gradient(180deg,#fbbf24,#f59e0b)}
+.cm-x{display:grid;grid-template-columns:repeat(12,1fr);gap:7px;font-size:.62rem;color:var(--muted);
+  text-align:center;margin-top:6px}
+.cm-table{width:100%;border-collapse:collapse;font-size:.86rem;margin-top:4px}
+.cm-table th,.cm-table td{padding:9px 10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+.cm-table th{font-size:.68rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.cm-table td.only-a{color:#047857;font-weight:600}
+.cm-table td.only-b{color:#b45309;font-weight:600}
+.cm-table td.miss{color:#cbd5e1}
+.cm-note{font-size:.78rem;color:var(--muted);margin:10px 0 0}
+.cm-pairs{margin-top:22px}
+.cm-pairs .grid{gap:12px}
+@media(max-width:900px){
+  .cm-pick{flex-direction:column;align-items:stretch}
+  .cm-pick select{min-width:0;width:100%}
+  .cm-bars{height:110px;gap:4px}
+  .cm-x{gap:4px;font-size:.56rem}
+}
+
 .share-modal{position:fixed;inset:0;z-index:80;background:rgba(12,16,22,.62);backdrop-filter:blur(6px);display:none;align-items:center;justify-content:center;padding:20px}
 .share-modal.on{display:flex}
 .share-panel{background:var(--surface);border:1px solid var(--line);border-radius:20px;padding:18px;max-width:min(780px,96vw);max-height:94vh;overflow:auto;box-shadow:0 30px 80px rgba(15,17,21,.35)}
@@ -3070,27 +3336,50 @@ def page_compare(a: tuple, b: tuple, year: int, rows_a: list[dict], rows_b: list
     )
 
 
-def page_compare_index(items: list[tuple[str, str, str, int]], site_url: str, verified: str) -> str:
+def page_compare_index(items: list[tuple[str, str, str, int]], site_url: str, verified: str,
+                       compare_data: list[dict] | None = None) -> str:
     cards = "".join(
         f'<a class="card" href="{pair_slug}/index.html"><div class="flag">⚖️</div>'
         f"<h3>{esc(a_name)} vs {esc(b_name)}</h3><p>Holidays side by side · {year}</p></a>"
         for pair_slug, a_name, b_name, year in items
     )
+    pairs_block = (
+        '<h2 class="cm-pairs">Popular comparisons</h2><div class="grid">' + cards + "</div>"
+        if cards else ""
+    )
+    picker = (
+        '<div class="cm-pick">'
+        '<label>国家 A · Country A<select data-cm-a></select></label>'
+        '<label>国家 B · Country B<select data-cm-b></select></label>'
+        "</div>"
+        '<div data-cm-out><p class="cm-note">Loading comparison…</p></div>'
+    )
     body = (
         '<section class="hero"><p class="eyebrow">Compare</p>'
         "<h1>Compare public holidays between countries</h1>"
-        '<p class="lede">Side-by-side holiday calendars for expats, remote workers and travel planning.</p>'
-        "</section>"
-        '<div class="grid">' + cards + "</div>"
-        '<p><a href="../index.html">← All countries</a></p>'
+        '<p class="lede">Pick any two countries: holiday counts, key holidays side by side, and '
+        "how holidays spread across the year — rendered live.</p></section>"
+        '<section class="sec" id="hk-compare">' + picker + "</section>"
+        + pairs_block
+        + '<p><a href="../index.html">← All countries</a></p>'
     )
+    extra = ""
+    if compare_data:
+        extra = (
+            "window.HK_COMPARE="
+            + json.dumps({"countries": compare_data}, ensure_ascii=False, separators=(",", ":"))
+            + ";"
+            + HOME_COMPARE_JS
+        )
     return render_page(
         title=f"Compare Public Holidays Between Countries | {SITE_NAME}",
-        description="Compare public holidays side by side for major country pairs.",
+        description="Compare public holidays side by side for any two countries: holiday counts, "
+                    "key holiday names and monthly distribution.",
         canonical=f"{site_url}/compare/",
         base="../",
         body=body,
         verified=verified,
+        extra_js=extra,
     )
 
 
@@ -3316,19 +3605,30 @@ def holiday_index_page(kind: str, items: list[tuple[str, str]], site_url: str, v
 
     def _card(slug: str, name: str) -> str:
         m = meta.get(name) or {}
-        countries = m.get("countries")
+        countries = m.get("countries") or 0
         days = m.get("days")
+        months = m.get("months") or []
+        mx = (max(months) if months else 1) or 1
+        spark = "".join(
+            f'<i style="height:{max(6, round(v / mx * 100))}%"></i>' for v in months
+        ) if months else ""
+        next_lbl = ""
+        if days is not None:
+            next_lbl = f"in {days} day{'s' if days != 1 else ''}" if days >= 0 else "today"
         if kind == "countdown" and days is not None:
             pct = max(3, min(100, round(100 - days / 365 * 100)))
-            soon = f"in {days} day{'s' if days != 1 else ''}" if days >= 0 else "today"
             return (
                 f'<a class="card" href="{slug}/index.html"><h3>{esc(name)}</h3>'
-                f'<p>{countries} countries · next {soon}</p>'
+                f'<p>{countries} countries · next {next_lbl}</p>'
                 f'<span class="prog" aria-hidden="true"><i style="width:{pct}%"></i></span></a>'
             )
         return (
             f'<a class="card" href="{slug}/index.html"><h3>{esc(name)}</h3>'
-            f"<p>{countries or 0} countries · dates by year · calendar links</p></a>"
+            f'<p>{countries} countries · {next_lbl or "dates by year"}</p>'
+            f'<span class="gspark" aria-hidden="true">{spark}</span>'
+            '<div class="gmeta">'
+            f'<span>by month</span><span>{countries} countries</span>'
+            "</div></a>"
         )
 
     cards = "".join(_card(slug, name) for slug, name in items)
@@ -3784,12 +4084,28 @@ def main() -> int:
         urls.append((f"days-until/{hslug}/", "0.6"))
 
     meta_count = {}
+    _catalog_years = set()
+    for _rows in catalog.values():
+        for _row in _rows:
+            try:
+                _catalog_years.add(date.fromisoformat(_row["date"]).year)
+            except (KeyError, ValueError):
+                continue
+    _catalog_focus = pick_focus_year(_catalog_years, today)
     for _hslug, _hname in top_items:
         _rows = catalog[_hname]
         _ccs = {r["country"] for r in _rows}
         _fut = sorted(r["date"] for r in _rows if r["date"] >= today.isoformat())
         _d = (date.fromisoformat(_fut[0]) - today).days if _fut else None
-        meta_count[_hname] = {"countries": len(_ccs), "days": _d}
+        _mon = [0] * 12
+        for _row in _rows:
+            try:
+                _rd = date.fromisoformat(_row["date"])
+            except (KeyError, ValueError):
+                continue
+            if _rd.year == _catalog_focus:
+                _mon[_rd.month - 1] += 1
+        meta_count[_hname] = {"countries": len(_ccs), "days": _d, "months": _mon}
 
     (out / "holidays").mkdir(exist_ok=True)
     (out / "holidays" / "index.html").write_text(
@@ -3850,9 +4166,20 @@ def main() -> int:
         )
         compare_items.append((pair_slug, a[1], b[1], year))
         urls.append((f"compare/{pair_slug}/", "0.6"))
+    compare_data = []
+    for cc, name, slug in countries:
+        fy = pick_focus_year(by_country[cc].keys(), today)
+        crows = sorted(by_country[cc][fy], key=lambda r: r["date"])
+        compare_data.append({
+            "c": cc,
+            "n": name,
+            "s": slug,
+            "y": fy,
+            "h": [[r["date"], r["name"], r.get("localName") or r["name"]] for r in crows],
+        })
     (out / "compare").mkdir(exist_ok=True)
     (out / "compare" / "index.html").write_text(
-        page_compare_index(compare_items, site_url, verified), encoding="utf-8")
+        page_compare_index(compare_items, site_url, verified, compare_data), encoding="utf-8")
     urls.append(("compare/", "0.7"))
 
     # ── static API (JSON) ──
