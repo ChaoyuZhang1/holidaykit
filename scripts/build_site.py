@@ -5130,22 +5130,11 @@ def main() -> int:
         "cookies in your browser settings.</p>"
         "<p>If you believe a holiday date is wrong, please contact us with the country, year and date.</p>"
     )
-    about = (
-        f"<p>{SITE_NAME} collects public holiday data from open sources and cross-checks it against "
-        "official government announcements. The goal is simple: show not just which days are holidays, "
-        "but how to turn them into the longest possible breaks.</p>"
-        "<p>Data sources: Nager.Date (MIT), OpenHolidays API, and official government pages. "
-        "Dates are provided for planning; always confirm before booking non-refundable travel.</p>"
-    )
     (out / "privacy").mkdir(exist_ok=True)
     (out / "privacy" / "index.html").write_text(
         page_static("privacy", "Privacy Policy", privacy, site_url, verified), encoding="utf-8"
     )
-    (out / "about").mkdir(exist_ok=True)
-    (out / "about" / "index.html").write_text(
-        page_static("about", f"About {SITE_NAME}", about, site_url, verified), encoding="utf-8"
-    )
-    urls.extend([("privacy/", "0.2"), ("about/", "0.2")])
+    urls.append(("privacy/", "0.2"))
 
     # ── site search index ──
     search_entries: list[dict] = []
@@ -5171,7 +5160,6 @@ def main() -> int:
         *([("api/", "Free JSON API", "Static holiday data, CORS, no key")] if SHOW_API else []),
         ("embed/", "Embed widget", "Put the calendar on your site"),
         ("premium/", "Premium", "Multi-country planner"),
-        ("about/", "About", "Data sources and method"),
         ("support/", "Support", "Keep the project free"),
     ]:
         search_entries.append({"t": _title, "s": _sub, "u": f"/{_path}", "k": "page"})
