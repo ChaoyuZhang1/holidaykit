@@ -24,6 +24,7 @@ import argparse
 import calendar
 import html
 import json
+from urllib.parse import urljoin
 import re
 import shutil
 from collections import defaultdict
@@ -858,7 +859,8 @@ I18N_JS = r"""
 (function(){
   var D = {
     en: {
-      'nav.countries':'Countries','nav.guides':'Holiday guides','nav.countdowns':'Countdowns',
+      'nav.countries':'Countries','nav.guides':'Holiday guides',
+      'nav.lw':'Long weekends','nav.countdowns':'Countdowns',
       'nav.compare':'Compare','nav.api':'API',
       'hero.eyebrow':'Public holidays · long weekends','hero.title':'Plan your year around long weekends.',
       'hero.lede':'Every public holiday, the longest breaks you can build around them, and one-click calendar subscriptions.',
@@ -877,7 +879,8 @@ I18N_JS = r"""
       'cta.browse':'Browse countries'
     },
     zh: {
-      'nav.countries':'国家','nav.guides':'节日指南','nav.countdowns':'倒计时',
+      'nav.countries':'国家','nav.guides':'节日指南',
+      'nav.lw':'长周末','nav.countdowns':'倒计时',
       'nav.compare':'国家对比','nav.api':'API',
       'hero.eyebrow':'公共假期 · 长周末','hero.title':'围绕长周末规划你的一年。',
       'hero.lede':'每个国家的公共假期、能拼出的最长假期，以及一键订阅日历。',
@@ -896,7 +899,8 @@ I18N_JS = r"""
       'cta.browse':'浏览国家'
     },
     ja: {
-      'nav.countries':'国一覧','nav.guides':'祝日ガイド','nav.countdowns':'カウントダウン',
+      'nav.countries':'国一覧','nav.guides':'祝日ガイド',
+      'nav.lw':'連休','nav.countdowns':'カウントダウン',
       'nav.compare':'国比較','nav.api':'API',
       'hero.eyebrow':'祝日 · 長い週末','hero.title':'長い週末を中心に一年を計画しよう。',
       'hero.lede':'各国の祝日、作れる最長の連休、ワンクリックのカレンダー購読。',
@@ -915,7 +919,8 @@ I18N_JS = r"""
       'cta.browse':'国を見る'
     },
     ko: {
-      'nav.countries':'국가','nav.guides':'공휴일 가이드','nav.countdowns':'카운트다운',
+      'nav.countries':'국가','nav.guides':'공휴일 가이드',
+      'nav.lw':'연휴','nav.countdowns':'카운트다운',
       'nav.compare':'국가 비교','nav.api':'API',
       'hero.eyebrow':'공휴일 · 긴 주말','hero.title':'긴 주말 중심으로 한 해를 계획하세요.',
       'hero.lede':'모든 공휴일, 만들 수 있는 가장 긴 연휴, 원클릭 캘린더 구독.',
@@ -934,7 +939,8 @@ I18N_JS = r"""
       'cta.browse':'국가 보기'
     },
     es: {
-      'nav.countries':'Países','nav.guides':'Guías de festivos','nav.countdowns':'Cuentas atrás',
+      'nav.countries':'Países','nav.guides':'Guías de festivos',
+      'nav.lw':'Fines de semana largos','nav.countdowns':'Cuentas atrás',
       'nav.compare':'Comparar','nav.api':'API',
       'hero.eyebrow':'Días festivos · fines de semana largos',
       'hero.title':'Planifica tu año según los fines de semana largos.',
@@ -954,7 +960,8 @@ I18N_JS = r"""
       'cta.browse':'Ver países'
     },
     fr: {
-      'nav.countries':'Pays','nav.guides':'Guides des fêtes','nav.countdowns':'Comptes à rebours',
+      'nav.countries':'Pays','nav.guides':'Guides des fêtes',
+      'nav.lw':'Longs week-ends','nav.countdowns':'Comptes à rebours',
       'nav.compare':'Comparer','nav.api':'API',
       'hero.eyebrow':'Jours fériés · longs week-ends',
       'hero.title':'Planifiez votre année autour des longs week-ends.',
@@ -974,7 +981,8 @@ I18N_JS = r"""
       'cta.browse':'Voir les pays'
     },
     de: {
-      'nav.countries':'Länder','nav.guides':'Feiertags-Guides','nav.countdowns':'Countdowns',
+      'nav.countries':'Länder','nav.guides':'Feiertags-Guides',
+      'nav.lw':'Lange Wochenenden','nav.countdowns':'Countdowns',
       'nav.compare':'Vergleichen','nav.api':'API',
       'hero.eyebrow':'Feiertage · lange Wochenenden',
       'hero.title':'Plane dein Jahr um lange Wochenenden.',
@@ -1543,6 +1551,7 @@ def nav_html(base: str) -> str:
         "<nav>"
         f'<a href="{base}index.html#countries" data-i18n="nav.countries">Countries</a>'
         f'<a href="{base}holidays/index.html" data-i18n="nav.guides">Holiday guides</a>'
+        f'<a href="{base}long-weekends/index.html" data-i18n="nav.lw">Long weekends</a>'
         f'<a href="{base}days-until/index.html" data-i18n="nav.countdowns">Countdowns</a>'
         f'<a href="{base}compare/index.html" data-i18n="nav.compare">Compare</a>'
         f'<a href="{base}api/index.html" data-i18n="nav.api">API</a>'
@@ -1721,11 +1730,20 @@ SEARCH_JS = r"""
 """
 
 
+CRUMB_CSS = """
+.crumbs{font-size:.78rem;color:var(--muted);margin:2px 0 18px;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.crumbs a{color:var(--muted);text-decoration:none;border-bottom:1px solid transparent}
+.crumbs a:hover{color:var(--ink);border-bottom-color:currentColor}
+.crumbs span[aria-current]{color:var(--ink);font-weight:600}
+.crumbs .sep{opacity:.45}
+"""
+
+
 def render_page(*, title: str, description: str, canonical: str, base: str,
                 body: str, verified: str, json_ld: str = "",
                 cta_href: str = "", cta_label: str = "Browse countries",
                 extra_js: str = "", lang_code: str = "en", alternates: str = "",
-                robots: str = "index,follow") -> str:
+                robots: str = "index,follow", crumbs: list | None = None) -> str:
     head = (
         f'<!doctype html><html lang="{esc(lang_code)}"><head><meta charset="utf-8">'
         '<meta name="viewport" content="width=device-width,initial-scale=1">'
@@ -1741,7 +1759,7 @@ def render_page(*, title: str, description: str, canonical: str, base: str,
         '<link rel="icon" href="/favicon.svg" type="image/svg+xml">'
         f'<link rel="sitemap" type="application/xml" href="{base}sitemap.xml">'
         + alternates
-        + f"<style>{CSS}{CSS2}{SHARE_CSS}{SEARCH_CSS}</style>"
+        + f"<style>{CSS}{CSS2}{SHARE_CSS}{SEARCH_CSS}{CRUMB_CSS}</style>"
     )
     _site_ld = json.dumps(
         {
@@ -1770,6 +1788,23 @@ def render_page(*, title: str, description: str, canonical: str, base: str,
         head += f'<meta name="google-site-verification" content="{esc(GOOGLE_VERIFY)}">'
     if json_ld:
         head += f'<script type="application/ld+json">{json_ld}</script>'
+    crumb_html = ""
+    if crumbs:
+        _items = []
+        _parts = []
+        for _i, (_lbl, _href) in enumerate(crumbs, start=1):
+            _item = {"@type": "ListItem", "position": _i, "name": _lbl}
+            if _href:
+                _item["item"] = urljoin(canonical, _href)
+                _parts.append(f'<a href="{_href}">{esc(_lbl)}</a>')
+            else:
+                _parts.append(f'<span aria-current="page">{esc(_lbl)}</span>')
+            _items.append(_item)
+        head += '<script type="application/ld+json">' + json.dumps(
+            {"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": _items},
+            ensure_ascii=False) + "</script>"
+        crumb_html = ('<nav class="crumbs" aria-label="Breadcrumb">'
+                      + '<span class="sep">›</span>'.join(_parts) + "</nav>")
     if OG_IMAGE:
         head += (
             f'<meta property="og:image" content="{esc(SITE_URL)}/og-cover.png">'
@@ -1791,7 +1826,7 @@ def render_page(*, title: str, description: str, canonical: str, base: str,
     html = (
         head + "</head><body>"
         + nav_html(base)
-        + '<main class="wrap">' + body + "</main>"
+        + '<main class="wrap">' + crumb_html + body + "</main>"
         + footer_html(base, verified)
         + mobile_cta
         + f"<script>{JS}</script>"
@@ -2489,6 +2524,7 @@ def page_country(cc: str, name: str, slug: str, by_country, site_url: str, verif
         cta_href=f"calendar-{latest}.ics",
         cta_label=f"Add {latest} to calendar",
         extra_js=share_extra,
+        crumbs=[("Home", "../index.html"), ("Countries", "../index.html#countries"), (name, "")],
     )
 
 
@@ -2603,6 +2639,7 @@ def page_year(cc: str, name: str, slug: str, year: int, rows: list[dict], runs: 
         cta_href=f"../calendar-{year}.ics",
         cta_label=f"Add {year} to calendar",
         extra_js=share_extra,
+        crumbs=[("Home", "../../index.html"), (name, "../index.html"), (str(year), "")],
     )
 
 
@@ -2648,6 +2685,144 @@ def page_long_weekends(cc: str, name: str, slug: str, year: int, runs: list[dict
         json_ld=faq_json_ld(faq),
         cta_href=f"../calendar-{year}.ics",
         cta_label=f"Add {year} to calendar",
+        crumbs=[("Home", "../../../index.html"), (name, "../../index.html"),
+                (str(year), "../../{year}/index.html".replace("{year}", str(year))),
+                ("Long weekends", "")],
+    )
+
+
+def _lw_best(runs: list[dict]) -> dict | None:
+    """Pick the cheapest strong break: fewest PTO for the longest total."""
+    best = None
+    for run in runs:
+        for opt in run["options"]:
+            if opt["pto"] > 1:
+                continue
+            score = opt["total"] - opt["pto"] * 2.5
+            if best is None or score > best["score"]:
+                best = {
+                    "score": score,
+                    "total": opt["total"],
+                    "pto": opt["pto"],
+                    "start": opt["start"],
+                    "end": opt["end"],
+                    "holiday": run["name"],
+                }
+    return best
+
+
+def page_lw_index(years: list[int], focus: int, top_rows: list[dict],
+                  year_best: dict, site_url: str, verified: str) -> str:
+    cards = "".join(
+        f'<a class="card" href="{y}/index.html"><h3>{y}</h3>'
+        f'<p class="muted">Worldwide long weekends &amp; bridge days</p>'
+        f'<span class="card-note">Longest break: {year_best.get(y, 0)} days</span></a>'
+        for y in years
+    )
+    table = "".join(
+        f'<tr><td>{i}</td><td><a href="/{r["slug"]}/{focus}/long-weekends/index.html">{esc(r["name"])}</a></td>'
+        f'<td>{esc(r["holiday"])}</td><td>{esc(fmt_range(r["start"], r["end"]))}</td>'
+        f'<td><strong>{r["total"]}</strong></td><td>{r["pto"] or "—"}</td></tr>'
+        for i, r in enumerate(top_rows[:20], start=1)
+    )
+    body = (
+        '<section class="hero"><p class="eyebrow">Long weekends · bridge days</p>'
+        f"<h1>The best long weekends of {focus}</h1>"
+        '<p class="lede">Every public-holiday run worldwide, ranked by how many days off you get for how '
+        "little leave. Bridges are pre-computed — no calendar maths.</p>"
+        '<div class="cta-row">'
+        f'<a class="btn" href="{focus}/index.html">See the full {focus} ranking</a>'
+        '<a class="btn ghost" href="../compare/index.html">Compare two countries</a>'
+        "</div></section>"
+        '<section class="sec"><h2>By year</h2><div class="grid">' + cards + "</div></section>"
+        f'<section class="sec"><h2>Top 20 breaks in {focus}</h2>'
+        '<div class="tbl-wrap"><table><thead><tr><th>#</th><th>Country</th><th>Holiday</th>'
+        "<th>Dates</th><th>Days off</th><th>Leave needed</th></tr></thead><tbody>"
+        + table + "</tbody></table></div>"
+        '<p class="viz-note">“Days off” is the total break once you take the leave shown. '
+        "Ranked by the longest break that needs at most a couple of days of leave.</p></section>"
+    )
+    return render_page(
+        title=f"Best Long Weekends {focus} — Worldwide Ranking | {SITE_NAME}",
+        description=f"Ranked long weekends and bridge days for {focus} across 95 countries: dates, days off "
+                    "and how much leave each one needs.",
+        canonical=f"{site_url}/long-weekends/",
+        base="../",
+        body=body,
+        verified=verified,
+        cta_href=f"{focus}/index.html",
+        cta_label=f"Full {focus} ranking",
+        crumbs=[("Home", "../index.html"), ("Long weekends", "")],
+    )
+
+
+def page_lw_year(year: int, rows: list[dict], site_url: str, verified: str) -> str:
+    table = "".join(
+        f'<tr><td>{i}</td><td><a href="/{r["slug"]}/{year}/long-weekends/index.html">{esc(r["name"])}</a></td>'
+        f'<td>{esc(r["holiday"])}</td><td>{esc(fmt_range(r["start"], r["end"]))}</td>'
+        f'<td><strong>{r["total"]}</strong></td><td>{r["pto"] or "—"}</td></tr>'
+        for i, r in enumerate(rows, start=1)
+    )
+    longest = rows[0] if rows else None
+    free = sum(1 for r in rows if r["pto"] == 0)
+    avg = round(sum(r["total"] for r in rows) / len(rows), 1) if rows else 0
+    kpi = (
+        '<div class="kpi-row">'
+        f'<div class="kpi"><span class="kpi-ico">{_svg("calendar")}</span><span class="kpi-b">'
+        f'<span class="kpi-n">{len(rows)}</span><span class="kpi-l">countries ranked</span></span></div>'
+        f'<div class="kpi"><span class="kpi-ico">{_svg("sparkle")}</span><span class="kpi-b">'
+        f'<span class="kpi-n">{longest["total"] if longest else 0}</span>'
+        '<span class="kpi-l">longest break (days)</span></span></div>'
+        f'<div class="kpi"><span class="kpi-ico">{_svg("check")}</span><span class="kpi-b">'
+        f'<span class="kpi-n">{free}</span><span class="kpi-l">need no leave at all</span></span></div>'
+        "</div>"
+    )
+    body = (
+        '<section class="hero"><p class="eyebrow">Long weekends · ' + str(year) + '</p>'
+        f"<h1>Long weekends around the world in {year}</h1>"
+        '<p class="lede">The best public-holiday breaks of the year, per country, with the exact leave '
+        "each one needs.</p>"
+        f'<div class="cta-row"><a class="btn ghost" href="../index.html">All years</a>'
+        f'<a class="btn ghost" href="../../api/index.html">Free JSON API</a></div></section>'
+        '<section class="sec"><h2>At a glance</h2>' + kpi
+        + f'<p class="viz-note">Average best break across ranked countries: {avg} days.</p></section>'
+        '<section class="sec"><h2>Ranking</h2><div class="tbl-wrap"><table><thead><tr><th>#</th>'
+        "<th>Country</th><th>Holiday</th><th>Dates</th><th>Days off</th><th>Leave needed</th>"
+        "</tr></thead><tbody>" + table + "</tbody></table></div></section>"
+    )
+    return render_page(
+        title=f"Long Weekends {year} — Worldwide Ranking | {SITE_NAME}",
+        description=f"Long weekends and bridge days in {year} for 95 countries: dates, days off and leave "
+                    "required, ranked.",
+        canonical=f"{site_url}/long-weekends/{year}/",
+        base="../../",
+        body=body,
+        verified=verified,
+        cta_href="../index.html",
+        cta_label="All years",
+        crumbs=[("Home", "../../index.html"), ("Long weekends", "../index.html"), (str(year), "")],
+    )
+
+
+def page_not_found(site_url: str, verified: str) -> str:
+    body = (
+        '<section class="hero"><p class="eyebrow">404</p>'
+        "<h1>This page took a public holiday.</h1>"
+        '<p class="lede">The link may be outdated, or the country/year you are looking for is not in the '
+        "dataset yet. Try the search box (⌘K) or one of these.</p>"
+        '<div class="cta-row"><a class="btn" href="/index.html#countries">Browse 95 countries</a>'
+        '<a class="btn ghost" href="/long-weekends/index.html">Best long weekends</a>'
+        '<a class="btn ghost" href="/api/index.html">Free JSON API</a></div></section>'
+    )
+    return render_page(
+        title="Page not found — " + SITE_NAME,
+        description="This page does not exist. Browse public holidays by country or use search.",
+        canonical=f"{site_url}/404.html",
+        base="/",
+        body=body,
+        verified=verified,
+        robots="noindex,follow",
+        crumbs=[("Home", "/index.html"), ("Not found", "")],
     )
 
 
@@ -4347,6 +4522,41 @@ def main() -> int:
                 encoding="utf-8",
             )
 
+    # ── long weekends hub ──
+    all_years = sorted({y for cc, _, _ in countries for y in by_country[cc]})
+    lw_focus = pick_focus_year(all_years, today)
+    lw_by_year: dict[int, list[dict]] = {}
+    for year in all_years:
+        rows_for_year = []
+        for cc, name, slug in countries:
+            year_rows = by_country[cc].get(year)
+            if not year_rows:
+                continue
+            best = _lw_best(compute_long_weekends(year_rows, year))
+            if not best:
+                continue
+            rows_for_year.append({**best, "cc": cc, "name": name, "slug": slug})
+        rows_for_year.sort(key=lambda r: (-r["total"], r["pto"], r["name"]))
+        lw_by_year[year] = rows_for_year
+
+    lw_dir = out / "long-weekends"
+    lw_dir.mkdir(parents=True, exist_ok=True)
+    focus_top = lw_by_year.get(lw_focus) or []
+    (lw_dir / "index.html").write_text(
+        page_lw_index(all_years, lw_focus, focus_top, {y: (rows[0]["total"] if rows else 0) for y, rows in lw_by_year.items()}, site_url, verified), encoding="utf-8"
+    )
+    urls.append(("long-weekends/", "0.8"))
+    for year in all_years:
+        ydir = lw_dir / str(year)
+        ydir.mkdir(parents=True, exist_ok=True)
+        (ydir / "index.html").write_text(
+            page_lw_year(year, lw_by_year[year], site_url, verified), encoding="utf-8"
+        )
+        urls.append((f"long-weekends/{year}/", "0.8"))
+
+    # 404
+    (out / "404.html").write_text(page_not_found(site_url, verified), encoding="utf-8")
+
     # ── holiday guides & countdowns ──
     ranked = sorted(catalog.items(), key=lambda kv: (-len({r["country"] for r in kv[1]}), kv[0]))
     top_items = [(holiday_slug(name), name) for name, _ in ranked[:150]]
@@ -4617,6 +4827,11 @@ def main() -> int:
     for _lang in HOME_I18N:
         search_entries.append({"t": f"HolidayKit {_lang.upper()}", "s": "Localized home page",
                                "u": f"/{_lang}/", "k": "page"})
+    search_entries.append({"t": "Long weekends", "s": "Best breaks worldwide, ranked",
+                           "u": "/long-weekends/", "k": "page"})
+    for _y in sorted(lw_by_year):
+        search_entries.append({"t": f"Long weekends {_y}", "s": "Worldwide long-weekend ranking",
+                               "u": f"/long-weekends/{_y}/", "k": "year"})
     (out / "search-index.json").write_text(
         json.dumps(search_entries, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
 
