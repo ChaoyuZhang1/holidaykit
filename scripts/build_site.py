@@ -54,6 +54,9 @@ SCHOOL_DATA: dict = {}
 SCHOOL_NAMES: dict = {}
 CN_CAL: dict = {}
 
+# 暂时不对外展示 API 入口（/api/ 页面仍可直链访问，但 noindex 且不进 sitemap）
+SHOW_API = False
+
 MONTHS_ABBR = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 
@@ -1741,11 +1744,57 @@ CRUMB_CSS = """
 """
 
 
+_API_LINK_RE = re.compile(r'<a\b[^>]*href="[^"]*api/index\.html"[^>]*>.*?</a>', re.S)
+_API_CHIP_RE = re.compile(r'<a class="chip" href="[^"]*api/index\.html">[^<]*</a>', re.S)
+_API_SECTION_RE = re.compile(r'<section class="sec"><h2>Build on HolidayKit</h2>.*?</section>', re.S)
+
+
+def hide_api(html: str) -> str:
+    """Drop every visible link to the API docs while SHOW_API is off."""
+    if SHOW_API:
+        return html
+    html = _API_SECTION_RE.sub("", html)
+    html = _API_CHIP_RE.sub("", html)
+    html = _API_LINK_RE.sub("", html)
+    html = html.replace('<section class="ad">[Ad slot]</section>',
+                        '<section class="ad" aria-hidden="true"></section>')
+    return html
+
+
+def support_strip(base: str = "", name: str = "") -> str:
+    """Reward-code card shown at the bottom of every homepage."""
+    name = name or SITE_NAME
+    qr = f'{base}assets/support/wechat.png'
+    return (
+        '<section class="sec support-strip"><p class="eyebrow">Support · 打赏</p>'
+        '<div class="sp-inner">'
+        f'<img class="sp-qr" src="{qr}" alt="WeChat reward QR code" loading="lazy" width="132" height="132">'
+        '<div class="sp-copy">'
+        f'<h2>Keep {name} free</h2>'
+        '<p class="sub">Every country page, calendar subscription and download is free and stays free. '
+        'If it saved you time, you can buy me a coffee — tips are optional and unlock nothing extra.</p>'
+        f'<div class="cta-row"><a class="btn ghost" href="{base}support/index.html">Support · 打赏</a></div>'
+        '</div></div></section>'
+    )
+
+
+SUPPORT_CSS = """
+.support-strip .sp-inner{display:flex;gap:22px;align-items:center;flex-wrap:wrap;margin-top:8px}
+.support-strip .sp-qr{border-radius:14px;border:1px solid var(--line);background:#fff;padding:8px;width:132px;height:132px}
+.support-strip .sp-copy{flex:1;min-width:240px}
+.support-strip h2{margin:2px 0 6px}
+.support-strip .sub{margin:0 0 12px}
+@media (max-width:640px){.support-strip .sp-qr{width:104px;height:104px}}
+"""
+
+
 def render_page(*, title: str, description: str, canonical: str, base: str,
                 body: str, verified: str, json_ld: str = "",
                 cta_href: str = "", cta_label: str = "Browse countries",
                 extra_js: str = "", lang_code: str = "en", alternates: str = "",
                 robots: str = "index,follow", crumbs: list | None = None) -> str:
+    if not SHOW_API and canonical.rstrip("/").endswith("/api"):
+        robots = "noindex,follow"
     head = (
         f'<!doctype html><html lang="{esc(lang_code)}"><head><meta charset="utf-8">'
         '<meta name="viewport" content="width=device-width,initial-scale=1">'
@@ -1761,7 +1810,7 @@ def render_page(*, title: str, description: str, canonical: str, base: str,
         '<link rel="icon" href="/favicon.svg" type="image/svg+xml">'
         f'<link rel="sitemap" type="application/xml" href="{base}sitemap.xml">'
         + alternates
-        + f"<style>{CSS}{CSS2}{SHARE_CSS}{SEARCH_CSS}{CRUMB_CSS}</style>"
+        + f"<style>{CSS}{CSS2}{SHARE_CSS}{SEARCH_CSS}{CRUMB_CSS}{SUPPORT_CSS}</style>"
     )
     _site_ld = json.dumps(
         {
@@ -1842,7 +1891,7 @@ def render_page(*, title: str, description: str, canonical: str, base: str,
         + f"<script>{PAGE_SHARE_JS}</script>"
         + "</body></html>"
     )
-    return deemoji(html)
+    return hide_api(deemoji(html))
 
 
 def holiday_table(rows: list[dict]) -> str:
@@ -2265,6 +2314,7 @@ def page_lang_home(lang: str, countries: list[tuple[str, str, str]], by_country,
         '<section class="sec"><h2>' + esc(T["how"]) + "</h2>"
         '<div class="activity">' + how_cards + "</div></section>"
         '<section class="ad">[Ad slot]</section>'
+        + support_strip("../")
     )
     return render_page(
         title=T["title"],
@@ -2398,6 +2448,7 @@ def page_index(countries: list[tuple[str, str, str]], by_country, site_url: str,
     body += '<section class="sec"><h2>FAQ</h2>' + faq_block(faq) + "</section>"
     if catalog and today:
         body += popular_sections(catalog, today)
+    body += support_strip("")
     return render_page(
         title=f"{SITE_NAME} — Public holidays and long weekends by country",
         description="Browse public holidays, long weekends and bridge days for every country. "
@@ -5065,7 +5116,8 @@ def main() -> int:
     (out / "api").mkdir(exist_ok=True)
     (out / "api" / "index.html").write_text(
         page_api_docs(site_url, verified, countries), encoding="utf-8")
-    urls.append(("api/", "0.5"))
+    if SHOW_API:
+        urls.append(("api/", "0.5"))
     (out / "embed").mkdir(exist_ok=True)
     demo_cc, demo_name = countries[0][0], countries[0][1]
     demo_year = sorted(by_country[demo_cc].keys())[-1]
@@ -5122,7 +5174,7 @@ def main() -> int:
         ("holidays/", "Holiday guides", "Every major public holiday"),
         ("days-until/", "Countdowns", "Days until each holiday"),
         ("school-holidays/", "School holidays", "Global school break calendar"),
-        ("api/", "Free JSON API", "Static holiday data, CORS, no key"),
+        *([("api/", "Free JSON API", "Static holiday data, CORS, no key")] if SHOW_API else []),
         ("embed/", "Embed widget", "Put the calendar on your site"),
         ("premium/", "Premium", "Multi-country planner"),
         ("about/", "About", "Data sources and method"),
