@@ -24,6 +24,7 @@ import argparse
 import calendar
 import html
 import json
+import re
 import shutil
 from collections import defaultdict
 from datetime import date, datetime, timedelta, timezone
@@ -1242,11 +1243,128 @@ def country_name(cc: str) -> str:
     return COUNTRY_NAMES.get(cc, cc)
 
 
+ICONS = {
+    "gift": '<rect x="3" y="8.5" width="18" height="4" rx="1"/><path d="M4.5 12.5V20a1.5 1.5 0 0 0 1.5 1.5h12a1.5 1.5 0 0 0 1.5-1.5v-7.5"/><path d="M12 8.5v13"/><path d="M12 8.5S10.5 3 7.8 3 4.6 6.7 7 7.8s5 .7 5 .7z"/><path d="M12 8.5S13.5 3 16.2 3s3.2 3.7.8 4.8-5 .7-5 .7z"/>',
+    "sparkle": '<path d="M12 3.5l1.7 4.6 4.6 1.7-4.6 1.7-1.7 4.6-1.7-4.6L5.7 9.8l4.6-1.7z"/><path d="M18.5 15.5l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"/>',
+    "beach": '<path d="M3 12a9 9 0 0 1 18 0z"/><path d="M12 12v8.5"/><path d="M9 21h6"/><path d="M12 3v1.4"/>',
+    "calendar": '<rect x="3" y="4.5" width="18" height="16" rx="2.5"/><path d="M8 2.5v4M16 2.5v4M3 10h18"/>',
+    "calendar-grid": '<rect x="3" y="4.5" width="18" height="16" rx="2.5"/><path d="M8 2.5v4M16 2.5v4M3 10h18M8 14h.01M12 14h.01M16 14h.01M8 17.5h.01M12 17.5h.01M16 17.5h.01"/>',
+    "chart": '<path d="M4 20V10M10 20V4M16 20v-7"/><path d="M2.5 21.5h19"/>',
+    "target": '<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r=".9"/>',
+    "globe": '<circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3c2.6 2.5 4 5.7 4 9s-1.4 6.5-4 9c-2.6-2.5-4-5.7-4-9s1.4-6.5 4-9z"/>',
+    "scale": '<path d="M12 3.5v17M7.5 20.5h9"/><path d="M4 8.5l-1.5 4.5h5z"/><path d="M20 8.5l-1.5 4.5h5z"/><path d="M4 8.5h16"/>',
+    "phone": '<rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M11 18.5h2"/>',
+    "book": '<path d="M4.5 5.5A2.5 2.5 0 0 1 7 3h12.5v18H7a2.5 2.5 0 0 0-2.5 2.5z"/><path d="M4.5 18.5A2.5 2.5 0 0 1 7 16h12.5"/>',
+    "coffee": '<path d="M4 8.5h12.5V15a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5z"/><path d="M16.5 9.5h2.2a2.6 2.6 0 0 1 0 5.2h-2.2"/><path d="M7 2.5v2.5M11 2.5v2.5M15 2.5v2.5"/>',
+    "star": '<path d="M12 3.2l2.7 5.8 6.2.7-4.6 4.2 1.3 6.1-5.6-3.1-5.6 3.1 1.3-6.1L3.1 9.7l6.2-.7z"/>',
+    "heart": '<path d="M12 20.2S4 15.6 4 10.4A4.2 4.2 0 0 1 12 7.6a4.2 4.2 0 0 1 8 2.8c0 5.2-8 9.8-8 9.8z"/>',
+    "check": '<path d="M4 12.5l5.2 5.2L20 6.8"/>',
+    "trend": '<path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/>',
+    "ban": '<circle cx="12" cy="12" r="9"/><path d="M5.8 5.8l12.4 12.4"/>',
+    "clock": '<circle cx="12" cy="12" r="9"/><path d="M12 7v5.3l3.4 2"/>',
+    "share": '<path d="M12 15V3.5"/><path d="M8 7.5l4-4 4 4"/><path d="M5 12.5v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/>',
+}
+
+EMOJI_ICON = {
+    "🎉": "gift",
+    "🎊": "sparkle",
+    "🎯": "target",
+    "🏖️": "beach",
+    "🏖": "beach",
+    "📅": "calendar",
+    "🗓️": "calendar-grid",
+    "🗓": "calendar-grid",
+    "📊": "chart",
+    "⚖️": "scale",
+    "⚖": "scale",
+    "🌍": "globe",
+    "🌐": "globe",
+    "✨": "sparkle",
+    "☕": "coffee",
+    "★": "star",
+    "♥": "heart",
+    "✓": "check",
+    "📱": "phone",
+    "🎒": "book",
+    "📈": "trend",
+    "🚫": "ban",
+    "⏱️": "clock",
+    "⏱": "clock",
+    "◷": "clock",
+    "⏳": "clock",
+    "⌛": "clock",
+}
+
+
+def _svg(name: str, size: str = "1em", js: bool = False) -> str:
+    body = ICONS.get(name) or ICONS["sparkle"]
+    q = "\x22" if js else '"'
+    attrs = (
+        f'{q}class={q}ic{q} width={q}{size}{q} height={q}{size}{q} '
+        f'viewBox={q}0 0 24 24{q} fill={q}none{q} stroke={q}currentColor{q} '
+        f'stroke-width={q}1.7{q} stroke-linecap={q}round{q} stroke-linejoin={q}round{q} '
+        f'aria-hidden={q}true{q}'
+    )
+    return "<svg " + attrs + ">" + body + "</svg>"
+
+
+def _deemoji_text(html: str, js: bool) -> str:
+    for char, name in EMOJI_ICON.items():
+        if char in html:
+            html = html.replace(char, _svg(name, js=js))
+    return html
+
+
+def deemoji(html: str) -> str:
+    """Replace decorative emoji with monochrome inline SVG icons (script-safe)."""
+    parts = re.split(r"(<script\b.*?</script>)", html, flags=re.S)
+    out = []
+    for part in parts:
+        if part.startswith("<script"):
+            out.append(_deemoji_text(part, js=True))
+        else:
+            out.append(_deemoji_text(part, js=False))
+    return "".join(out)
+
+
 def flag_emoji(cc: str) -> str:
+    """ISO code chip; crisp on every OS (flag emoji do not render on Windows)."""
     code = str(cc or "").upper()
     if len(code) != 2 or not code.isalpha():
-        return "🌍"
-    return chr(0x1F1E6 + ord(code[0]) - 65) + chr(0x1F1E6 + ord(code[1]) - 65)
+        return _svg("globe", "0.95em")
+    return code
+
+
+PAGE_SHARE_JS = r"""
+(function(){
+  function mk(openFn,label){
+    var b=document.createElement('button');
+    b.type='button'; b.className='share-fab';
+    b.setAttribute('aria-label','Share this page');
+    b.innerHTML='<span class="sf-ic" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3.5"/><path d="M8 7.5l4-4 4 4"/><path d="M5 12.5v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg></span><span class="sf-txt">'+label+'</span>';
+    b.addEventListener('click', openFn);
+    document.body.appendChild(b);
+  }
+  function fallback(){
+    var url=location.href, title=document.title;
+    if(navigator.share){ navigator.share({title:title,url:url}).catch(function(){}); return; }
+    if(navigator.clipboard){ navigator.clipboard.writeText(url).then(function(){
+      var t=document.createElement('div');
+      t.textContent='Link copied — share it anywhere.';
+      t.style.cssText='position:fixed;left:50%;bottom:110px;transform:translateX(-50%);z-index:99;background:#111;color:#fff;padding:10px 16px;border-radius:999px;font-size:.85rem;opacity:.95';
+      document.body.appendChild(t); setTimeout(function(){t.remove();},2200);
+    }).catch(function(){}); }
+  }
+  window.addEventListener('load', function(){
+    setTimeout(function(){
+      if(document.querySelector('.share-fab')) return;
+      var lang=(document.documentElement.lang||'en').slice(0,2);
+      var TXT={zh:'分享',ja:'共有',ko:'공유',es:'Compartir',fr:'Partager',de:'Teilen'};
+      mk(fallback, TXT[lang]||'Share');
+    }, 400);
+  });
+})();
+"""
 
 
 def next_date_from_rows(rows: list[dict], today: date) -> date | None:
@@ -1524,7 +1642,7 @@ def render_page(*, title: str, description: str, canonical: str, base: str,
         f'<a class="btn ghost" href="{base}holidays/index.html" data-i18n="nav.guides">Holiday guides</a>'
         "</div>"
     )
-    return (
+    html = (
         head + "</head><body>"
         + nav_html(base)
         + '<main class="wrap">' + body + "</main>"
@@ -1536,8 +1654,10 @@ def render_page(*, title: str, description: str, canonical: str, base: str,
         + f"<script>{CAL_JS}</script>"
         + f"<script>{MOTION_JS}</script>"
         + (f"<script>{extra_js}</script>" if extra_js else "")
+        + f"<script>{PAGE_SHARE_JS}</script>"
         + "</body></html>"
     )
+    return deemoji(html)
 
 
 def holiday_table(rows: list[dict]) -> str:
@@ -2693,6 +2813,15 @@ def share_payload(cc: str, name: str, slug: str, year: int, rows: list[dict], si
 
 
 SHARE_CSS = """
+.ic{display:inline-block;vertical-align:-0.14em;flex:none}
+.kpi-ico .ic{width:20px;height:20px}
+.sec-h-ico{display:inline-flex;align-items:center;justify-content:center;vertical-align:-2px}
+.sec-h-ico .ic{width:18px;height:18px;stroke-width:1.9}
+h3 .ic{width:.95em;height:.95em;vertical-align:-0.08em;opacity:.85}
+.flag{font-size:.66rem;font-weight:800;letter-spacing:.09em;color:var(--muted);
+  background:rgba(15,23,42,.05);border:1px solid var(--line);border-radius:7px;
+  padding:3px 7px;display:inline-block;line-height:1.2;vertical-align:2px;text-align:center;min-width:2.1em}
+h1 .flag{font-size:.30em;letter-spacing:.10em;vertical-align:.55em;padding:3px 7px;opacity:.85}
 /* homepage next-holiday countdown */
 .hero-side{display:flex;flex-direction:column;gap:14px;min-width:0}
 .hero-next{border:0;border-radius:18px;padding:18px 20px;color:#e2e8f0;
