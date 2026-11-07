@@ -1584,6 +1584,8 @@ def footer_html(base: str, verified: str) -> str:
         "</div>"
         '<div><strong data-i18n="foot.explore">Explore</strong>'
         f'<a href="{base}index.html#countries" data-i18n="foot.all">All countries</a>'
+        f'<a href="{base}calendar/index.html">Holidays by month</a>'
+        f'<a href="{base}long-weekends/index.html" data-i18n="nav.lw">Long weekends</a>'
         f'<a href="{base}holidays/index.html" data-i18n="nav.guides">Holiday guides</a>'
         f'<a href="{base}days-until/index.html" data-i18n="nav.countdowns">Countdowns</a>'
         f'<a href="{base}compare/index.html" data-i18n="nav.compare">Compare countries</a>'
@@ -2617,6 +2619,7 @@ def page_year(cc: str, name: str, slug: str, year: int, rows: list[dict], runs: 
         + f'<a class="chip" href="../../compare/index.html?a={cc}&b=US">Compare {esc(name)} vs US</a>'
         + f'<a class="chip" href="../../days-until/index.html">Holiday countdowns</a>'
         + f'<a class="chip" href="../../api/index.html">Free JSON API</a>'
+        + f'<a class="chip" href="../../calendar/index.html">Month by month</a>'
         + '</div>'
         f'<p><a href="../index.html">← {esc(name)} overview</a></p>'
     )
@@ -2709,6 +2712,214 @@ def _lw_best(runs: list[dict]) -> dict | None:
                     "holiday": run["name"],
                 }
     return best
+
+
+MONTH_NAMES = ["January", "February", "March", "April", "May", "June",
+               "July", "August", "September", "October", "November", "December"]
+MONTH_SHORT = [m[:3] for m in MONTH_NAMES]
+
+
+def _month_entries(by_country, countries, year: int, month: int) -> list[dict]:
+    """Every public holiday across all countries on that month."""
+    want = f"{month:02d}"
+    items = []
+    for cc, cname, slug in countries:
+        for row in by_country[cc].get(year) or []:
+            d = str(row.get("date") or "")
+            if len(d) == 10 and d[5:7] == want:
+                items.append({
+                    "date": d,
+                    "n": row.get("name") or "Public holiday",
+                    "l": row.get("localName") or "",
+                    "cc": cc,
+                    "cname": cname,
+                    "slug": slug,
+                })
+    items.sort(key=lambda e: (e["date"], e["cname"], e["n"]))
+    return items
+
+
+def _month_counts(by_country, countries, year: int) -> list[int]:
+    counts = [0] * 12
+    for cc, _cname, _slug in countries:
+        for row in by_country[cc].get(year) or []:
+            d = str(row.get("date") or "")
+            if len(d) == 10:
+                try:
+                    counts[int(d[5:7]) - 1] += 1
+                except ValueError:
+                    continue
+    return counts
+
+
+def page_month_index(years: list[int], counts: dict[int, list[int]], site_url: str, verified: str) -> str:
+    year_blocks = []
+    for year in years:
+        mon = counts.get(year) or [0] * 12
+        total = sum(mon)
+        cards = "".join(
+            f'<a class="mcard" href="{year}/{i + 1}/index.html">'
+            f'<span class="mcard-m">{MONTH_NAMES[i]}</span>'
+            f'<span class="mcard-n">{mon[i]}</span>'
+            f'<span class="mcard-l">holidays</span></a>'
+            for i in range(12)
+        )
+        year_blocks.append(
+            f'<section class="sec"><h2>{year} <span class="muted" style="font-weight:400;font-size:.9rem">'
+            f'· {total} holidays</span></h2><div class="mgrid">{cards}</div></section>'
+        )
+    body = (
+        '<section class="hero"><p class="eyebrow">Global calendar</p>'
+        "<h1>Public holidays worldwide, month by month</h1>"
+        '<p class="lede">Pick a month to see every public holiday happening around the world — which '
+        "countries are off, on what day, and how it lines up with yours.</p>"
+        '<div class="cta-row"><a class="btn ghost" href="../long-weekends/index.html">Long weekends</a>'
+        '<a class="btn ghost" href="../api/index.html">Free JSON API</a></div></section>'
+        + "".join(year_blocks)
+    )
+    body = "<style>" + MONTH_CSS + "</style>" + body
+    return render_page(
+        title=f"Public Holidays by Month, Worldwide | {SITE_NAME}",
+        description="Browse public holidays worldwide month by month: which countries are off each month, "
+                    "dates and holiday names, for 2025–2028.",
+        canonical=f"{site_url}/calendar/",
+        base="../",
+        body=body,
+        verified=verified,
+        crumbs=[("Home", "../index.html"), ("Calendar", "")],
+    )
+
+
+def page_month_year(year: int, counts: list[int], site_url: str, verified: str) -> str:
+    cards = "".join(
+        f'<a class="mcard" href="{i + 1}/index.html">'
+        f'<span class="mcard-m">{MONTH_NAMES[i]}</span>'
+        f'<span class="mcard-n">{counts[i]}</span>'
+        f'<span class="mcard-l">holidays</span></a>'
+        for i in range(12)
+    )
+    peak = max(range(12), key=lambda i: counts[i]) if any(counts) else 0
+    body = (
+        f'<section class="hero"><p class="eyebrow">Global calendar · {year}</p>'
+        f"<h1>Public holidays worldwide in {year}, month by month</h1>"
+        f'<p class="lede">The busiest month is {MONTH_NAMES[peak]} with {counts[peak]} public holidays '
+        "across the countries covered. Pick a month for the full list.</p>"
+        '<div class="cta-row"><a class="btn ghost" href="../index.html">All years</a>'
+        f'<a class="btn ghost" href="../../long-weekends/{year}/index.html">{year} long weekends</a></div>'
+        "</section>"
+        f'<section class="sec"><div class="mgrid">{cards}</div></section>'
+    )
+    body = "<style>" + MONTH_CSS + "</style>" + body
+    return render_page(
+        title=f"Public Holidays {year} by Month, Worldwide | {SITE_NAME}",
+        description=f"Every public holiday in {year} around the world, organised by month — see which "
+                    "countries are off each month.",
+        canonical=f"{site_url}/calendar/{year}/",
+        base="../../",
+        body=body,
+        verified=verified,
+        crumbs=[("Home", "../../index.html"), ("Calendar", "../index.html"), (str(year), "")],
+    )
+
+
+def page_month(year: int, month: int, entries: list[dict], site_url: str, verified: str) -> str:
+    mname = MONTH_NAMES[month - 1]
+    by_date: dict[str, list[dict]] = {}
+    for e in entries:
+        by_date.setdefault(e["date"], []).append(e)
+
+    rows_html = []
+    for d in sorted(by_date):
+        items = by_date[d]
+        try:
+            wd = date.fromisoformat(d).strftime("%a")
+        except ValueError:
+            wd = ""
+        names: list[str] = []
+        for e in items:
+            label = e["n"]
+            if e["l"] and e["l"] != e["n"]:
+                label = f'{e["n"]} · {e["l"]}'
+            if label not in names:
+                names.append(label)
+        nm = " / ".join(esc(n) for n in names[:3])
+        if len(names) > 3:
+            nm += f" +{len(names) - 3} more"
+        seen, links = set(), []
+        for e in sorted(items, key=lambda x: x["cname"]):
+            if e["cc"] in seen:
+                continue
+            seen.add(e["cc"])
+            links.append(f'<a href="/{e["slug"]}/{year}/">{esc(e["cname"])}</a>')
+        rows_html.append(
+            f'<tr><td>{d}</td><td>{wd}</td><td>{nm}</td><td>{" · ".join(links)}</td></tr>'
+        )
+
+    countries_n = len({e["cc"] for e in entries})
+    busy_date = max(by_date, key=lambda d: len({e["cc"] for e in by_date[d]})) if by_date else ""
+    busy_n = len({e["cc"] for e in by_date[busy_date]}) if busy_date else 0
+    kpi = (
+        '<div class="kpi-row">'
+        f'<div class="kpi"><span class="kpi-ico">{_svg("calendar")}</span><span class="kpi-b">'
+        f'<span class="kpi-n">{countries_n}</span><span class="kpi-l">countries are off</span></span></div>'
+        f'<div class="kpi"><span class="kpi-ico">{_svg("gift")}</span><span class="kpi-b">'
+        f'<span class="kpi-n">{len(entries)}</span><span class="kpi-l">public holidays</span></span></div>'
+        f'<div class="kpi"><span class="kpi-ico">{_svg("sparkle")}</span><span class="kpi-b">'
+        f'<span class="kpi-n">{busy_n}</span><span class="kpi-l">countries on the busiest day</span></span></div>'
+        "</div>"
+    )
+    prev_m, prev_y = (12, year - 1) if month == 1 else (month - 1, year)
+    next_m, next_y = (1, year + 1) if month == 12 else (month + 1, year)
+    nav_links = (
+        '<div class="chips">'
+        f'<a class="chip" href="../../{prev_y}/{prev_m}/index.html">← {MONTH_SHORT[prev_m - 1]} {prev_y}</a>'
+        f'<a class="chip" href="../../{year}/index.html">All of {year}</a>'
+        f'<a class="chip" href="../../{next_y}/{next_m}/index.html">{MONTH_SHORT[next_m - 1]} {next_y} →</a>'
+        f'<a class="chip" href="../../../long-weekends/{year}/index.html">{year} long weekends</a>'
+        "</div>"
+    )
+    body = (
+        f'<section class="hero"><p class="eyebrow">Global calendar · {mname} {year}</p>'
+        f"<h1>Public holidays around the world in {mname} {year}</h1>"
+        f'<p class="lede">{len(entries)} public holidays across {countries_n} countries fall in {mname} '
+        f"{year}. "
+        + (f"The busiest day is {busy_date} with {busy_n} countries off." if busy_date else "")
+        + "</p></section>"
+        f'<section class="sec"><div class="kpi-row">{kpi}</div></section>'
+        '<section class="sec"><h2>Holidays by date</h2><div class="tbl-wrap"><table><thead><tr>'
+        "<th>Date</th><th>Day</th><th>Holiday</th><th>Countries</th></tr></thead><tbody>"
+        + "".join(rows_html)
+        + "</tbody></table></div></section>"
+        + nav_links
+    )
+    body = "<style>" + MONTH_CSS + "</style>" + body
+    return render_page(
+        title=f"Public Holidays in {mname} {year} Around the World | {SITE_NAME}",
+        description=f"Which countries are off in {mname} {year}: {len(entries)} public holidays across "
+                    f"{countries_n} countries, with dates and holiday names.",
+        canonical=f"{site_url}/calendar/{year}/{month}/",
+        base="../../../",
+        body=body,
+        verified=verified,
+        crumbs=[
+            ("Home", "../../../index.html"),
+            ("Calendar", "../../index.html"),
+            (str(year), "../index.html"),
+            (mname, ""),
+        ],
+    )
+
+
+MONTH_CSS = """
+.mgrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.mcard{display:flex;flex-direction:column;gap:2px;padding:16px 16px 14px;border:1px solid var(--line);
+  border-radius:14px;background:#fff;transition:transform .18s ease,box-shadow .18s ease;color:inherit}
+.mcard:hover{transform:translateY(-2px);box-shadow:0 10px 24px rgba(15,23,42,.08);text-decoration:none}
+.mcard-m{font-weight:650;font-size:.95rem}
+.mcard-n{font-size:1.55rem;font-weight:700;letter-spacing:-.02em;line-height:1.1}
+.mcard-l{font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+@media(max-width:760px){.mgrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+"""
 
 
 def page_lw_index(years: list[int], focus: int, top_rows: list[dict],
@@ -3047,6 +3258,61 @@ def load_school(path: Path) -> tuple[dict, dict]:
     if not isinstance(raw, dict):
         return {}, {}
     return raw.get("countries") or {}, raw.get("countryNames") or {}
+
+
+def load_school_extra(root: Path) -> tuple[dict, dict]:
+    """Merge manually curated national school calendars from data/school_extra.csv.
+
+    CSV columns: cc,country,year,name,start,end,region,source
+    Used only where no free nationwide API exists (source is recorded per row).
+    """
+    path = root / "data" / "school_extra.csv"
+    countries: dict = {}
+    names: dict = {}
+    try:
+        rows = path.read_text(encoding="utf-8-sig").splitlines()
+    except OSError:
+        return countries, names
+    for i, line in enumerate(rows):
+        if not line.strip() or line.lstrip().startswith("#"):
+            continue
+        parts = [c.strip() for c in line.split(",")]
+        if i == 0 and parts[0].lower() == "cc":
+            continue
+        if len(parts) < 7:
+            continue
+        cc, cname, year, hname, start, end, region = parts[:7]
+        source = parts[7] if len(parts) > 7 else ""
+        if not (len(cc) == 2 and cc.isalpha()):
+            continue
+        try:
+            ds = date.fromisoformat(start)
+            de = date.fromisoformat(end)
+        except ValueError:
+            continue
+        if de < ds:
+            continue
+        names.setdefault(cc, cname)
+        countries.setdefault(cc, {}).setdefault(str(year), []).append({
+            "name": hname,
+            "start": start,
+            "end": end,
+            "days": (de - ds).days + 1,
+            "region": region or "Nationwide",
+            "source": source,
+        })
+    for cc in countries:
+        for y in countries[cc]:
+            seen = set()
+            uniq = []
+            for item in countries[cc][y]:
+                key = (item["start"], item["end"], item["name"])
+                if key in seen:
+                    continue
+                seen.add(key)
+                uniq.append(item)
+            countries[cc][y] = sorted(uniq, key=lambda r: (r["start"], r["name"]))
+    return countries, names
 
 
 def load_cn_calendar(path: Path) -> dict:
@@ -3668,8 +3934,15 @@ def page_school_index(items: list[tuple[str, str]], site_url: str, verified: str
     body = (
         '<section class="hero"><p class="eyebrow">School calendars</p>'
         "<h1>School holidays by country</h1>"
-        '<p class="lede">Official school break dates by region, with calendar subscriptions. '
-        "Coverage is expanding as sources publish future calendars.</p></section>"
+        '<p class="lede">Official school break dates by region, with calendar subscriptions.</p>'
+        '</section>'
+        '<section class="sec"><h2>Coverage</h2>'
+        f'<p class="sub">Nationwide school calendars are published as open data for {len(items)} countries '
+        '(Europe plus a growing set of national calendars). In most other countries school terms are set '
+        "by province, state or individual school board, so no single national calendar exists to publish.</p>"
+        f'<p class="sub">Know the official calendar for another country? '
+        f'<a href="mailto:{CONTACT_EMAIL}?subject=School%20calendar%20for%20a%20country">Send the source link</a> '
+        "and it will be added to this list.</p></section>"
         '<div class="grid">' + cards + "</div>"
         '<p><a href="../index.html">← All countries</a></p>'
     )
@@ -4299,6 +4572,14 @@ def main() -> int:
     GOOGLE_VERIFY = args.google_site_verification.strip()
     OFFICIAL_SOURCES = load_official_sources(Path(args.official_sources))
     SCHOOL_DATA, SCHOOL_NAMES = load_school(ROOT / "data" / "school.json")
+    _extra_data, _extra_names = load_school_extra(ROOT)
+    for _cc, _years in _extra_data.items():
+        _target = SCHOOL_DATA.setdefault(_cc, {})
+        for _y, _items in _years.items():
+            _target.setdefault(_y, []).extend(_items)
+        SCHOOL_NAMES.setdefault(_cc, _extra_names.get(_cc, _cc))
+        for _y in _target:
+            _target[_y] = sorted(_target[_y], key=lambda r: (r["start"], r["name"]))
     CN_CAL = load_cn_calendar(ROOT / "data" / "cn_calendar.json")
     OG_IMAGE = (ROOT / "assets" / "og-cover.png").exists()
 
@@ -4556,6 +4837,30 @@ def main() -> int:
 
     # 404
     (out / "404.html").write_text(page_not_found(site_url, verified), encoding="utf-8")
+
+    # ── worldwide calendar by month ──
+    cal_dir = out / "calendar"
+    cal_dir.mkdir(parents=True, exist_ok=True)
+    cal_counts: dict[int, list[int]] = {}
+    for year in all_years:
+        cal_counts[year] = _month_counts(by_country, countries, year)
+    (cal_dir / "index.html").write_text(
+        page_month_index(all_years, cal_counts, site_url, verified), encoding="utf-8")
+    urls.append(("calendar/", "0.8"))
+    for year in all_years:
+        ydir = cal_dir / str(year)
+        ydir.mkdir(parents=True, exist_ok=True)
+        (ydir / "index.html").write_text(
+            page_month_year(year, cal_counts[year], site_url, verified), encoding="utf-8")
+        urls.append((f"calendar/{year}/", "0.7"))
+        for month in range(1, 13):
+            entries = _month_entries(by_country, countries, year, month)
+            mdir = ydir / str(month)
+            mdir.mkdir(parents=True, exist_ok=True)
+            (mdir / "index.html").write_text(
+                page_month(year, month, entries, site_url, verified), encoding="utf-8")
+            urls.append((f"calendar/{year}/{month}/", "0.6"))
+    CAL_YEARS = list(all_years)
 
     # ── holiday guides & countdowns ──
     ranked = sorted(catalog.items(), key=lambda kv: (-len({r["country"] for r in kv[1]}), kv[0]))
@@ -4832,6 +5137,15 @@ def main() -> int:
     for _y in sorted(lw_by_year):
         search_entries.append({"t": f"Long weekends {_y}", "s": "Worldwide long-weekend ranking",
                                "u": f"/long-weekends/{_y}/", "k": "year"})
+    search_entries.append({"t": "Holidays by month", "s": "Worldwide calendar, month by month",
+                           "u": "/calendar/", "k": "page"})
+    for _y in CAL_YEARS:
+        search_entries.append({"t": f"Public holidays {_y} by month", "s": "Worldwide calendar",
+                               "u": f"/calendar/{_y}/", "k": "year"})
+        for _m in range(1, 13):
+            search_entries.append({"t": f"{MONTH_NAMES[_m - 1]} {_y} holidays",
+                                   "s": "Which countries are off this month",
+                                   "u": f"/calendar/{_y}/{_m}/", "k": "month"})
     (out / "search-index.json").write_text(
         json.dumps(search_entries, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
 
