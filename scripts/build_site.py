@@ -400,7 +400,10 @@ tbody tr:hover{background:#fcfbf8}
 .lang-select{border:1px solid var(--line);background:var(--surface);color:var(--ink-soft);border-radius:9px;padding:4px 6px;font-size:.8rem;margin-left:12px}
 @media(max-width:900px){
   .head-inner{height:auto;min-height:56px;flex-wrap:wrap;row-gap:6px;padding:8px 0}
-  .site-head nav{order:3;width:100%;overflow-x:auto;gap:14px;padding:0 0 4px;white-space:nowrap}
+  .site-head nav{order:3;width:100%;overflow-x:auto;gap:14px;padding:0 0 4px;white-space:nowrap;
+    scrollbar-width:none;-webkit-overflow-scrolling:touch;
+    mask-image:linear-gradient(90deg,#000 0,#000 calc(100% - 22px),transparent)}
+  .site-head nav::-webkit-scrollbar{display:none}
   .site-head nav a{white-space:nowrap;font-size:.82rem}
   .lang-select{margin-left:auto}
   body{padding-bottom:76px}
