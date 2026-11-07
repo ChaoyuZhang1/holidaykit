@@ -332,7 +332,7 @@ tbody tr:hover{background:#fcfbf8}
 .price.featured{border-color:var(--accent)}
 .price h3{font-family:var(--font-display);font-size:1.2rem}
 .site-foot{margin-top:64px;padding:34px 0 46px;font-size:.85rem}
-.foot-grid{display:grid;grid-template-columns:1.6fr 1fr 1fr 1fr;gap:26px}
+.foot-grid{display:grid;grid-template-columns:1.6fr 1.4fr;gap:26px}
 .foot-grid strong{display:block;color:var(--ink);font-size:.78rem;letter-spacing:.08em;text-transform:uppercase;margin-bottom:10px}
 .foot-grid a{display:block;color:var(--muted);margin:5px 0;font-size:.85rem}
 .foot-grid a:hover{color:var(--accent)}
@@ -864,7 +864,7 @@ I18N_JS = r"""
     en: {
       'nav.countries':'Countries','nav.guides':'Holiday guides',
       'nav.lw':'Long weekends','nav.countdowns':'Countdowns',
-      'nav.compare':'Compare','nav.api':'API',
+      'nav.compare':'Compare','nav.api':'API','nav.school':'School holidays',
       'hero.eyebrow':'Public holidays · long weekends','hero.title':'Plan your year around long weekends.',
       'hero.lede':'Every public holiday, the longest breaks you can build around them, and one-click calendar subscriptions.',
       'hero.cta.browse':'Browse countries',
@@ -884,7 +884,7 @@ I18N_JS = r"""
     zh: {
       'nav.countries':'国家','nav.guides':'节日指南',
       'nav.lw':'长周末','nav.countdowns':'倒计时',
-      'nav.compare':'国家对比','nav.api':'API',
+      'nav.compare':'国家对比','nav.api':'API','nav.school':'学校假期',
       'hero.eyebrow':'公共假期 · 长周末','hero.title':'围绕长周末规划你的一年。',
       'hero.lede':'每个国家的公共假期、能拼出的最长假期，以及一键订阅日历。',
       'hero.cta.browse':'浏览国家',
@@ -904,7 +904,7 @@ I18N_JS = r"""
     ja: {
       'nav.countries':'国一覧','nav.guides':'祝日ガイド',
       'nav.lw':'連休','nav.countdowns':'カウントダウン',
-      'nav.compare':'国比較','nav.api':'API',
+      'nav.compare':'国比較','nav.school':'学校の休暇',nav.api':'API',
       'hero.eyebrow':'祝日 · 長い週末','hero.title':'長い週末を中心に一年を計画しよう。',
       'hero.lede':'各国の祝日、作れる最長の連休、ワンクリックのカレンダー購読。',
       'hero.cta.browse':'国を見る',
@@ -924,7 +924,7 @@ I18N_JS = r"""
     ko: {
       'nav.countries':'국가','nav.guides':'공휴일 가이드',
       'nav.lw':'연휴','nav.countdowns':'카운트다운',
-      'nav.compare':'국가 비교','nav.api':'API',
+      'nav.compare':'국가 비교','nav.school':'방학',nav.api':'API',
       'hero.eyebrow':'공휴일 · 긴 주말','hero.title':'긴 주말 중심으로 한 해를 계획하세요.',
       'hero.lede':'모든 공휴일, 만들 수 있는 가장 긴 연휴, 원클릭 캘린더 구독.',
       'hero.cta.browse':'국가 보기',
@@ -944,7 +944,7 @@ I18N_JS = r"""
     es: {
       'nav.countries':'Países','nav.guides':'Guías de festivos',
       'nav.lw':'Fines de semana largos','nav.countdowns':'Cuentas atrás',
-      'nav.compare':'Comparar','nav.api':'API',
+      'nav.compare':'Comparar','nav.school':'Vacaciones escolares',nav.api':'API',
       'hero.eyebrow':'Días festivos · fines de semana largos',
       'hero.title':'Planifica tu año según los fines de semana largos.',
       'hero.lede':'Todos los días festivos, los descansos más largos y suscripción al calendario en un clic.',
@@ -965,7 +965,7 @@ I18N_JS = r"""
     fr: {
       'nav.countries':'Pays','nav.guides':'Guides des fêtes',
       'nav.lw':'Longs week-ends','nav.countdowns':'Comptes à rebours',
-      'nav.compare':'Comparer','nav.api':'API',
+      'nav.compare':'Comparer','nav.school':'Vacances scolaires',nav.api':'API',
       'hero.eyebrow':'Jours fériés · longs week-ends',
       'hero.title':'Planifiez votre année autour des longs week-ends.',
       'hero.lede':'Tous les jours fériés, les plus longues pauses et un abonnement calendrier en un clic.',
@@ -986,7 +986,7 @@ I18N_JS = r"""
     de: {
       'nav.countries':'Länder','nav.guides':'Feiertags-Guides',
       'nav.lw':'Lange Wochenenden','nav.countdowns':'Countdowns',
-      'nav.compare':'Vergleichen','nav.api':'API',
+      'nav.compare':'Vergleichen','nav.school':'Schulferien',nav.api':'API',
       'hero.eyebrow':'Feiertage · lange Wochenenden',
       'hero.title':'Plane dein Jahr um lange Wochenenden.',
       'hero.lede':'Alle Feiertage, die längsten Pausen und Kalender-Abo mit einem Klick.',
@@ -1557,6 +1557,7 @@ def nav_html(base: str) -> str:
         f'<a href="{base}long-weekends/index.html" data-i18n="nav.lw">Long weekends</a>'
         f'<a href="{base}days-until/index.html" data-i18n="nav.countdowns">Countdowns</a>'
         f'<a href="{base}compare/index.html" data-i18n="nav.compare">Compare</a>'
+        f'<a href="{base}school-holidays/index.html" data-i18n="nav.school">School holidays</a>'
         f'<a href="{base}api/index.html" data-i18n="nav.api">API</a>'
         "</nav>"
         '<select class="lang-select" data-hk-lang aria-label="Language">'
@@ -1583,7 +1584,7 @@ def footer_html(base: str, verified: str) -> str:
         '<div>'
         f'<div class="foot-brand">{SITE_NAME}</div>'
         f'<p class="muted">Public holidays, long weekends and bridge days for every country. '
-        "Free calendar subscriptions and an open JSON API.</p>"
+        "Free calendar subscriptions for Google, Apple and Outlook.</p>"
         "</div>"
         '<div><strong data-i18n="foot.explore">Explore</strong>'
         f'<a href="{base}index.html#countries" data-i18n="foot.all">All countries</a>'
@@ -1592,20 +1593,10 @@ def footer_html(base: str, verified: str) -> str:
         f'<a href="{base}holidays/index.html" data-i18n="nav.guides">Holiday guides</a>'
         f'<a href="{base}days-until/index.html" data-i18n="nav.countdowns">Countdowns</a>'
         f'<a href="{base}compare/index.html" data-i18n="nav.compare">Compare countries</a>'
-        f'<a href="{base}school-holidays/index.html" data-i18n="foot.school">School holidays</a></div>'
-        f'<div><strong data-i18n="foot.developers">Developers</strong>'
-        f'<a href="{base}api/index.html" data-i18n="nav.api">Free API</a>'
-        f'<a href="{base}embed/index.html" data-i18n="foot.embed">Embed widget</a>'
-        '<a href="https://workdaykit.pages.dev">Business days calculator</a>'
-        f'<a href="{base}premium/index.html" data-i18n="foot.premium">Premium</a></div>'
-        f'<div><strong data-i18n="foot.data">Data</strong>'
-        f'<a href="{base}about/index.html" data-i18n="foot.about">About &amp; sources</a>'
+        f'<a href="{base}school-holidays/index.html" data-i18n="foot.school">School holidays</a>'
         f'<a href="{base}privacy/index.html" data-i18n="foot.privacy">Privacy</a>'
-        f'<a href="{base}support/index.html">♥ Support · 打赏</a>'
-        '<a href="https://date.nager.at" rel="nofollow noopener" target="_blank">Nager.Date</a></div>'
+        f'<a href="{base}support/index.html">♥ Support · 打赏</a></div>'
         "</div>"
-        f'<div class="foot-note" data-i18n="foot.note">Data from open sources, cross-checked against official government '
-        "announcements. Dates are for planning — always confirm before booking non-refundable travel.</div>"
         "</div></footer>"
     )
 
