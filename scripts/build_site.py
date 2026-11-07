@@ -4519,6 +4519,8 @@ def main() -> int:
     (out / "favicon.svg").write_text(FAVICON_SVG, encoding="utf-8")
     if args.indexnow_key:
         (out / f"{args.indexnow_key}.txt").write_text(args.indexnow_key, encoding="utf-8")
+
+    (out / '9c1f7a2b4d6e8f0a1b3c5d7e9f2a4b6c.txt').write_text('9c1f7a2b4d6e8f0a1b3c5d7e9f2a4b6c', encoding='utf-8')
     if OG_IMAGE:
         shutil.copyfile(ROOT / "assets" / "og-cover.png", out / "og-cover.png")
     (out / "_headers").write_text(
