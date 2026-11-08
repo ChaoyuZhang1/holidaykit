@@ -3,7 +3,7 @@ param(
   [string]$ProjectName = "holidaykit",
   [string]$AffiliateUrl = "",
   [string]$ContactEmail = "hello@example.com",
-  [string]$AdsenseClient = "",
+  [string]$AdsenseClient = "pub-7313518062740280",
   [string]$GoogleVerification = "QfC8EpnSFGu7aWk17GyocmVaOBbTxTxy9lgJy3oYzfE",
   [string]$IndexNowKey = "9c1f7a2b4d6e8f0a1b3c5d7e9f2a4b6c",
   [switch]$SkipCollect
