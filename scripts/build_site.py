@@ -1581,6 +1581,42 @@ def hreflang_links(site_url: str) -> str:
     return "".join(parts)
 
 
+
+SISTER_SITES = [
+    ("HolidayKit", "https://holidaykit.pages.dev", "Public holidays & long weekends"),
+    ("WorkdayKit", "https://workdaykit.pages.dev", "Business day calculator"),
+    ("ExchangeKit", "https://exchangekit.pages.dev", "Trading days & market holidays"),
+    ("TicketOrder", "https://ticketorder.cn", "Course calendars & countdowns"),
+]
+
+SISTER_CSS = """
+.foot-sisters{margin-top:30px;border-top:1px solid var(--line,#e7e5df);padding-top:22px}
+.fs-h{font-size:.66rem;letter-spacing:.16em;text-transform:uppercase;color:var(--muted,#6b7280);font-weight:600;margin-bottom:12px}
+.sister-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px}
+.sister{display:block;border:1px solid var(--line,#e7e5df);border-radius:12px;padding:12px 14px;text-decoration:none;background:var(--card,#fff);transition:transform .18s ease,border-color .18s ease}
+.sister strong{display:block;font-size:.9rem;color:var(--ink,#111)}
+.sister span{display:block;font-size:.75rem;color:var(--muted,#6b7280);margin-top:3px}
+.sister:hover{transform:translateY(-1px);border-color:var(--accent,#0f766e)}
+"""
+
+
+def sister_html(current: str = "") -> str:
+    items = []
+    for name, url, desc in SISTER_SITES:
+        if name == current:
+            continue
+        items.append(
+            f'<a class="sister" href="{url}" rel="noopener" target="_blank">'
+            f'<strong>{name}</strong><span>{desc}</span></a>'
+        )
+    return (
+        '<div class="foot-sisters">'
+        '<div class="fs-h">Sister sites · 相关站点</div>'
+        '<div class="sister-list">' + "".join(items) + "</div>"
+        "</div>"
+    )
+
+
 def footer_html(base: str, verified: str) -> str:
     return (
         '<footer class="site-foot"><div class="wrap">'
@@ -1601,7 +1637,8 @@ def footer_html(base: str, verified: str) -> str:
         f'<a href="{base}privacy/index.html" data-i18n="foot.privacy">Privacy</a>'
         f'<a href="{base}support/index.html">♥ Support · 打赏</a></div>'
         "</div>"
-        "</div></footer>"
+        + sister_html(SITE_NAME)
+        + "</div></footer>"
     )
 
 
@@ -1809,7 +1846,7 @@ _ASSET_CACHE: dict[str, str] = {}
 
 def _global_css() -> str:
     if "css" not in _ASSET_CACHE:
-        bundle = CSS + CSS2 + SHARE_CSS + SEARCH_CSS + CRUMB_CSS + SUPPORT_CSS
+        bundle = CSS + CSS2 + SHARE_CSS + SEARCH_CSS + CRUMB_CSS + SUPPORT_CSS + SISTER_CSS
         _ASSET_CACHE["css"] = bundle
         _ASSET_CACHE["ver"] = hashlib.md5(bundle.encode("utf-8")).hexdigest()[:10]
     return _ASSET_CACHE["css"]
