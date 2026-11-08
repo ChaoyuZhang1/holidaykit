@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import argparse
 import calendar
+import hashlib
 import html
 import json
 from urllib.parse import urljoin
@@ -1803,6 +1804,22 @@ SUPPORT_CSS = """
 """
 
 
+_ASSET_CACHE: dict[str, str] = {}
+
+
+def _global_css() -> str:
+    if "css" not in _ASSET_CACHE:
+        bundle = CSS + CSS2 + SHARE_CSS + SEARCH_CSS + CRUMB_CSS + SUPPORT_CSS
+        _ASSET_CACHE["css"] = bundle
+        _ASSET_CACHE["ver"] = hashlib.md5(bundle.encode("utf-8")).hexdigest()[:10]
+    return _ASSET_CACHE["css"]
+
+
+def _asset_ver() -> str:
+    _global_css()
+    return _ASSET_CACHE["ver"]
+
+
 def render_page(*, title: str, description: str, canonical: str, base: str,
                 body: str, verified: str, json_ld: str = "",
                 cta_href: str = "", cta_label: str = "Browse countries",
@@ -1825,7 +1842,7 @@ def render_page(*, title: str, description: str, canonical: str, base: str,
         '<link rel="icon" href="/favicon.svg" type="image/svg+xml">'
         f'<link rel="sitemap" type="application/xml" href="{base}sitemap.xml">'
         + alternates
-        + f"<style>{CSS}{CSS2}{SHARE_CSS}{SEARCH_CSS}{CRUMB_CSS}{SUPPORT_CSS}</style>"
+        + f'<link rel="stylesheet" href="{base}assets/site.css?v={_asset_ver()}">'
     )
     _site_ld = json.dumps(
         {
@@ -4767,6 +4784,9 @@ def main() -> int:
     if out.exists():
         shutil.rmtree(out)
     out.mkdir(parents=True)
+    assets = out / "assets"
+    assets.mkdir(parents=True, exist_ok=True)
+    (assets / "site.css").write_text(_global_css(), encoding="utf-8")
 
     urls: list[tuple[str, str]] = []
 
@@ -5192,7 +5212,8 @@ def main() -> int:
         "/api/v1/*\n  Access-Control-Allow-Origin: *\n  Cache-Control: public, max-age=86400\n"
         "/assets/support/*\n  Cache-Control: public, max-age=604800\n"
         "/widget.js\n  Cache-Control: public, max-age=86400\n"
-        "/search-index.json\n  Cache-Control: public, max-age=3600\n",
+        "/search-index.json\n  Cache-Control: public, max-age=3600\n"
+        "/assets/site.css\n  Cache-Control: public, max-age=31536000, immutable\n",
         encoding="utf-8",
     )
     support_dir = ROOT / "assets" / "support"
