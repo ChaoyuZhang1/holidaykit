@@ -5319,7 +5319,12 @@ def main() -> int:
             f"<priority>{priority}</priority></url>"
         )
     all_lines.append("</urlset>")
-    (out / "sitemap-all.xml").write_text("\n".join(all_lines), encoding="utf-8")
+    flat_text = "\n".join(all_lines)
+    # /sitemap.xml is a single flat urlset: sitemap indexes are rejected by some
+    # crawler UIs ("The page is not accessible"), a 1850-URL urlset is far below
+    # the 50 MB / 50k-URL limit and works for Google and Bing alike.
+    (out / "sitemap.xml").write_text(flat_text, encoding="utf-8")
+    (out / "sitemap-all.xml").write_text(flat_text, encoding="utf-8")
 
     # chunked sitemap index: /sitemap.xml IS the index (better for Search Console)
     chunk_size = 500
@@ -5345,7 +5350,7 @@ def main() -> int:
         )
     index_lines.append("</sitemapindex>")
     index_text = "\n".join(index_lines)
-    (out / "sitemap.xml").write_text(index_text, encoding="utf-8")
+    (out / "sitemap-index.xml").write_text(index_text, encoding="utf-8")
     (out / "sitemap_index.xml").write_text(index_text, encoding="utf-8")
 
     # minimal sitemap (diagnostics: isolate content issues from fetch/property issues)
