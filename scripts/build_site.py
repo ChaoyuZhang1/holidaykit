@@ -1604,6 +1604,27 @@ def footer_html(base: str, verified: str) -> str:
     )
 
 
+_INDEX_HREF = re.compile(r'href="([^"]*?)index\.html((?:[#?][^"]*)?)"')
+
+
+def clean_links(html: str) -> str:
+    """Point internal links at directory URLs (/x/) instead of /x/index.html."""
+    def _fix(m: "re.Match[str]") -> str:
+        prefix = m.group(1)
+        frag = m.group(2) or ""
+        if prefix.endswith("/"):
+            return f'href="{prefix}{frag}"'
+        return f'href="./{frag}"'
+
+    html = _INDEX_HREF.sub(_fix, html)
+    # absolute URLs inside JSON-LD / canonical tags: https://host/foo/index.html -> https://host/foo/
+    html = re.sub(r'(https?://[^"\s]+?)/index\.html(?=["#?])', r"\1/", html)
+    # JS string literals that build navigation targets, e.g. '/' + slug + '/index.html'
+    html = re.sub(r"""(['"])([^'"]*?)/index\.html\1""",
+                  lambda m: m.group(1) + m.group(2) + "/" + m.group(1), html)
+    return html
+
+
 SEARCH_CSS = """
 .nav-search{display:inline-flex;align-items:center;gap:7px;background:transparent;border:1px solid var(--line);
   border-radius:999px;padding:7px 13px;font-size:.82rem;color:var(--muted);cursor:pointer;font-family:inherit}
@@ -1885,7 +1906,7 @@ def render_page(*, title: str, description: str, canonical: str, base: str,
         + f"<script>{PAGE_SHARE_JS}</script>"
         + "</body></html>"
     )
-    return hide_api(deemoji(html))
+    return clean_links(hide_api(deemoji(html)))
 
 
 def holiday_table(rows: list[dict]) -> str:
@@ -2937,6 +2958,19 @@ def page_month(year: int, month: int, entries: list[dict], site_url: str, verifi
         + "</tbody></table></div></section>"
         + nav_links
     )
+    faq = [
+        (f"How many public holidays are there in {mname} {year}?",
+         f"{len(entries)} public holidays across {countries_n} countries are listed for {mname} {year}, "
+         "including regional holidays."),
+        (f"Which day in {mname} {year} has the most countries off?",
+         (f"{busy_date} — {busy_n} countries have a public holiday that day." if busy_date
+          else "No public holidays fall in this month for the covered countries.")),
+        ("Are regional and local holidays included?",
+         "Yes. Where a country observes holidays only in some regions, each regional holiday is listed "
+         "separately with its date."),
+    ]
+    body += ('<section class="sec"><h2>Frequently asked questions</h2>' + faq_block(faq)
+             + "</section>")
     body = "<style>" + MONTH_CSS + "</style>" + body
     return render_page(
         title=f"Public Holidays in {mname} {year} Around the World | {SITE_NAME}",
@@ -2952,6 +2986,7 @@ def page_month(year: int, month: int, entries: list[dict], site_url: str, verifi
             (str(year), "../index.html"),
             (mname, ""),
         ],
+        json_ld=faq_json_ld(faq),
     )
 
 
@@ -2998,6 +3033,21 @@ def page_lw_index(years: list[int], focus: int, top_rows: list[dict],
         '<p class="viz-note">“Days off” is the total break once you take the leave shown. '
         "Ranked by the longest break that needs at most a couple of days of leave.</p></section>"
     )
+    best_year = max(year_best, key=lambda y: year_best.get(y, 0)) if year_best else focus
+    faq = [
+        ("Which year has the longest long weekend?",
+         f"{best_year} leads with a {year_best.get(best_year, 0)}-day break once the best holiday run in "
+         "each country is taken into account."),
+        ("How is a long weekend counted?",
+         "We join public holidays to the weekends directly before or after them, then add the bridge days "
+         "that turn the run into one continuous break. Leave needed is the number of working days you take "
+         "off to connect the run."),
+        ("Do I have to take leave to get a long weekend?",
+         f"No — {sum(1 for r in top_rows if r.get('pto') == 0)} ranked breaks in {focus} need no leave at "
+         "all, because the holiday already touches a weekend."),
+    ]
+    body += ('<section class="sec"><h2>Frequently asked questions</h2>' + faq_block(faq)
+             + "</section>")
     return render_page(
         title=f"Best Long Weekends {focus} — Worldwide Ranking | {SITE_NAME}",
         description=f"Ranked long weekends and bridge days for {focus} across 95 countries: dates, days off "
@@ -3009,6 +3059,7 @@ def page_lw_index(years: list[int], focus: int, top_rows: list[dict],
         cta_href=f"{focus}/index.html",
         cta_label=f"Full {focus} ranking",
         crumbs=[("Home", "../index.html"), ("Long weekends", "")],
+        json_ld=faq_json_ld(faq),
     )
 
 
@@ -3046,6 +3097,17 @@ def page_lw_year(year: int, rows: list[dict], site_url: str, verified: str) -> s
         "<th>Country</th><th>Holiday</th><th>Dates</th><th>Days off</th><th>Leave needed</th>"
         "</tr></thead><tbody>" + table + "</tbody></table></div></section>"
     )
+    faq = [
+        (f"What is the longest long weekend in {year}?",
+         (f"{esc(longest['name'])} around {esc(longest['holiday'])}: {longest['total']} days off "
+          f"with {longest['pto'] or 0} day(s) of leave." if longest else "No long weekends ranked.")),
+        (f"How many countries need no leave in {year}?",
+         f"{free} of {len(rows)} ranked countries get their longest break without taking any leave."),
+        (f"What is the average best break in {year}?",
+         f"Across the ranked countries the best break averages {avg} days."),
+    ]
+    body = body + ('<section class="sec"><h2>Frequently asked questions</h2>' + faq_block(faq)
+                   + "</section>")
     return render_page(
         title=f"Long Weekends {year} — Worldwide Ranking | {SITE_NAME}",
         description=f"Long weekends and bridge days in {year} for 95 countries: dates, days off and leave "
@@ -3057,6 +3119,7 @@ def page_lw_year(year: int, rows: list[dict], site_url: str, verified: str) -> s
         cta_href="../index.html",
         cta_label="All years",
         crumbs=[("Home", "../../index.html"), ("Long weekends", "../index.html"), (str(year), "")],
+        json_ld=faq_json_ld(faq),
     )
 
 
@@ -3991,6 +4054,20 @@ def page_school_index(items: list[tuple[str, str]], site_url: str, verified: str
         '<div class="grid">' + cards + "</div>"
         '<p><a href="../index.html">← All countries</a></p>'
     )
+    faq = [
+        ("Why are school holidays available for only some countries?",
+         f"Nationwide school calendars are published as open data for {len(items)} countries. Elsewhere "
+         "term dates are set by province, state or even individual school boards, so there is no single "
+         "national calendar to publish."),
+        ("How accurate are the school holiday dates?",
+         "Each calendar comes from the official education authority for that country and is refreshed when "
+         "the authority publishes a new school year."),
+        ("Can I subscribe to a school holiday calendar?",
+         "Yes — every country page offers an .ics subscription for Google Calendar, Apple Calendar and "
+         "Outlook."),
+    ]
+    body += ('<section class="sec"><h2>Frequently asked questions</h2>' + faq_block(faq)
+             + "</section>")
     return render_page(
         title=f"School Holidays by Country | {SITE_NAME}",
         description="School holiday dates by country and region, with calendar subscriptions.",
@@ -3998,11 +4075,13 @@ def page_school_index(items: list[tuple[str, str]], site_url: str, verified: str
         base="../",
         body=body,
         verified=verified,
+        json_ld=faq_json_ld(faq),
     )
 
 
 def page_compare(a: tuple, b: tuple, year: int, rows_a: list[dict], rows_b: list[dict],
-                 site_url: str, verified: str) -> str:
+                 site_url: str, verified: str,
+                 related: list[tuple[str, str, str]] | None = None) -> str:
     a_cc, a_name, a_slug = a
     b_cc, b_name, b_slug = b
     common = {r["date"] for r in rows_a} & {r["date"] for r in rows_b}
@@ -4096,6 +4175,10 @@ def page_compare(a: tuple, b: tuple, year: int, rows_a: list[dict], rows_b: list
         + viz
         + holiday_table(rows_a, a_name, f"../../{a_slug}/index.html")
         + holiday_table(rows_b, b_name, f"../../{b_slug}/index.html")
+        + ('<section class="sec"><h2>More holiday comparisons</h2><div class="chips">'
+           + "".join(f'<a class="chip" href="../{slug}/index.html">{esc(an)} vs {esc(bn)}</a>'
+                     for slug, an, bn in related)
+           + "</div></section>" if related else "")
         + '<section class="ad">[Ad slot]</section>'
         + '<section class="sec"><h2>FAQ</h2>' + faq_block(faq) + "</section>"
         '<p><a href="../index.html">← All comparisons</a></p>'
@@ -4982,32 +5065,54 @@ def main() -> int:
 
     # ── country comparisons ──
     country_by_code = {c[0]: c for c in countries}
-    compare_pairs = [
-        ("US", "GB"), ("US", "CA"), ("US", "AU"), ("US", "DE"), ("US", "JP"),
-        ("GB", "DE"), ("GB", "FR"), ("GB", "IE"), ("DE", "FR"), ("DE", "AT"),
-        ("FR", "ES"), ("ES", "IT"), ("NL", "BE"), ("CH", "AT"), ("SE", "NO"),
-        ("PL", "CZ"), ("AU", "NZ"), ("JP", "KR"), ("CN", "HK"), ("SG", "MY"),
-        ("BR", "MX"), ("CA", "AU"), ("GB", "JP"), ("IN", "PK"),
+    TOP_COMPARE = [
+        "US", "GB", "CA", "AU", "DE", "FR", "ES", "IT", "NL", "BE", "CH", "AT",
+        "SE", "NO", "DK", "FI", "IE", "PT", "PL", "CZ", "JP", "KR", "CN", "HK",
+        "TW", "SG", "MY", "IN", "PK", "BR", "MX", "AE",
     ]
-    compare_items = []
+    compare_pairs = [(x, y) for i, x in enumerate(TOP_COMPARE) for y in TOP_COMPARE[i + 1:]]
+    compare_plan: list[tuple[str, str, int]] = []
     for a_cc, b_cc in compare_pairs:
         if a_cc not in country_by_code or b_cc not in country_by_code:
             continue
         common_years = set(by_country[a_cc]) & set(by_country[b_cc])
         if not common_years:
             continue
-        year = 2026 if 2026 in common_years else max(common_years)
+        compare_plan.append((a_cc, b_cc, pick_focus_year(common_years, today)))
+    adjacency: dict[str, list[str]] = {}
+    for a_cc, b_cc, _y in compare_plan:
+        adjacency.setdefault(a_cc, []).append(b_cc)
+        adjacency.setdefault(b_cc, []).append(a_cc)
+    slug_of = {cc: country_by_code[cc][2] for cc in country_by_code}
+    name_of = {cc: country_by_code[cc][1] for cc in country_by_code}
+    compare_items = []
+    for a_cc, b_cc, year in compare_plan:
         a = country_by_code[a_cc]
         b = country_by_code[b_cc]
         pair_slug = f"{a[2]}-vs-{b[2]}-holidays"
+        partners = [x for x in adjacency.get(a_cc, []) if x != b_cc]
+        partners += [x for x in adjacency.get(b_cc, []) if x != a_cc]
+        related = []
+        seen = set()
+        for other in partners:
+            if other not in by_country or not by_country[other]:
+                continue
+            slug = f"{slug_of[a_cc]}-vs-{slug_of[other]}-holidays"
+            if slug in seen:
+                continue
+            seen.add(slug)
+            related.append((slug, name_of[a_cc], name_of[other]))
+            if len(related) == 6:
+                break
         pdir = out / "compare" / pair_slug
         pdir.mkdir(parents=True, exist_ok=True)
         (pdir / "index.html").write_text(
             page_compare(a, b, year, by_country[a_cc][year], by_country[b_cc][year],
-                         site_url, verified),
+                         site_url, verified, related),
             encoding="utf-8",
         )
-        compare_items.append((pair_slug, a[1], b[1], year))
+        if len(compare_items) < 24:
+            compare_items.append((pair_slug, a[1], b[1], year))
         urls.append((f"compare/{pair_slug}/", "0.6"))
     compare_data = []
     for cc, name, slug in countries:
